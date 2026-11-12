@@ -99,18 +99,22 @@
   const trees = [];
   const bushes = [];
   const lights = [];
+  
+  // КОФЕЙНЯ ТЕПЕРЬ НА УГЛУ ПЕРЕКРЕСТКА (5000, 2500)
+  // ШАУРМИЧНАЯ НА УГЛУ (2500, 5000)
   const shops = [
-    { x: 4000, y: 4000, w: 200, h: 150, name: "Кофейня", color: "#8e44ad", items: [{ name: "Кофе", price: 150, mood: 15 }] },
-    { x: 6000, y: 6000, w: 250, h: 200, name: "Шаурмичная", color: "#d35400", items: [{ name: "Шаурма", price: 300, mood: 30 }] }
+    { x: 5200, y: 2250, w: 200, h: 150, name: "Кофейня", color: "#8e44ad", items: [{ name: "Кофе", price: 150, mood: 15 }] },
+    { x: 2250, y: 5200, w: 250, h: 200, name: "Шаурмичная", color: "#d35400", items: [{ name: "Шаурма", price: 300, mood: 30 }] }
   ];
 
   function isOnRoad(x, y) {
-    for (let rx of roadsX) { if (Math.abs(x - rx) < ROAD_WIDTH/2 + 40) return true; }
-    for (let ry of roadsY) { if (Math.abs(y - ry) < ROAD_WIDTH/2 + 40) return true; }
+    for (let rx of roadsX) { if (Math.abs(x - rx) < ROAD_WIDTH/2 + 50) return true; }
+    for (let ry of roadsY) { if (Math.abs(y - ry) < ROAD_WIDTH/2 + 50) return true; }
     return false;
   }
 
   function initWorld() {
+    // Деревья и кусты
     for(let i=0; i<800; i++) {
       let tx = Math.random() * WORLD_SIZE;
       let ty = Math.random() * WORLD_SIZE;
@@ -121,17 +125,31 @@
       let by = Math.random() * WORLD_SIZE;
       if (!isOnRoad(bx, by)) bushes.push({ x: bx, y: by, r: 15 + Math.random()*10 });
     }
-    for(let i=0; i<WORLD_SIZE; i+=300) {
-      for (let rx of roadsX) {
-        if (Math.abs(i - rx) > ROAD_WIDTH) {
-          lights.push({ x: rx - ROAD_WIDTH/2 - 30, y: i });
-          lights.push({ x: rx + ROAD_WIDTH/2 + 30, y: i });
+    
+    // ИСПРАВЛЕННЫЕ ФОНАРИ (Строго по обочинам, вне перекрестков)
+    const lightOffset = ROAD_WIDTH/2 + 50;
+    const step = 400;
+
+    // Вертикальные дороги
+    for (let rx of roadsX) {
+      for (let y = 0; y < WORLD_SIZE; y += step) {
+        let isIntersection = false;
+        for (let ry of roadsY) { if (Math.abs(y - ry) < lightOffset) isIntersection = true; }
+        if (!isIntersection) {
+          lights.push({ x: rx - lightOffset, y: y });
+          lights.push({ x: rx + lightOffset, y: y });
         }
       }
-      for (let ry of roadsY) {
-        if (Math.abs(i - ry) > ROAD_WIDTH) {
-          lights.push({ x: i, y: ry - ROAD_WIDTH/2 - 30 });
-          lights.push({ x: i, y: ry + ROAD_WIDTH/2 + 30 });
+    }
+
+    // Горизонтальные дороги
+    for (let ry of roadsY) {
+      for (let x = 0; x < WORLD_SIZE; x += step) {
+        let isIntersection = false;
+        for (let rx of roadsX) { if (Math.abs(x - rx) < lightOffset) isIntersection = true; }
+        if (!isIntersection) {
+          lights.push({ x: x, y: ry - lightOffset });
+          lights.push({ x: x, y: ry + lightOffset });
         }
       }
     }
@@ -145,12 +163,10 @@
     const key = e.key.toLowerCase();
     keys[key] = true;
     
-    // E - Действие / Позвать
     if (key === ' ' || key === 'e' || key === 'у') {
       if (!gameState.activePanel) interact();
       e.preventDefault();
     }
-    // F - Выйти / Высадить
     if (key === 'f' || key === 'а') {
       if (!gameState.activePanel) exitCarOrEject();
       e.preventDefault();
@@ -176,16 +192,12 @@
     document.getElementById('hud-mission').style.display = mission.active ? 'block' : 'none';
   }
 
-  // Действие (Вход/Позвать)
   function interact() {
     if (gameState.activePanel) return;
 
     if (gameState.inCar) {
-      // Если в машине и рядом Егор - зовем его
       const dist = Math.hypot(car.x - egor.x, car.y - egor.y);
-      if (egor.state === 'idle' && dist < 250) {
-        egor.state = 'walking';
-      }
+      if (egor.state === 'idle' && dist < 250) egor.state = 'walking';
       return;
     }
 
@@ -211,19 +223,16 @@
     }
   }
 
-  // Выход из машины (F)
   function exitCarOrEject() {
     if (gameState.activePanel) return;
     
     if (gameState.inCar) {
       if (egor.state === 'inCar') {
-        // Если Егор в машине - высаживаем его
         egor.state = 'idle';
         egor.x = car.x + 80;
         egor.y = car.y + 80;
         mission.active = false;
       } else {
-        // Иначе выходим сами
         gameState.inCar = false;
         player.x = car.x + Math.cos(car.angle + Math.PI/2) * 80;
         player.y = car.y + Math.sin(car.angle + Math.PI/2) * 80;
@@ -234,7 +243,6 @@
   function update() {
     if (gameState.activePanel) return;
 
-    // Егор идет к машине
     if (egor.state === 'walking') {
       let dx = car.x - egor.x;
       let dy = car.y - egor.y;
@@ -245,13 +253,20 @@
       } else {
         egor.state = 'inCar';
         mission.active = true;
-        // Генерируем точку для такси
-        mission.destX = Math.random() * (WORLD_SIZE - 2000) + 1000;
-        mission.destY = Math.random() * (WORLD_SIZE - 2000) + 1000;
+        
+        // ИСПРАВЛЕНИЕ: Точка назначения ВСЕГДА на дороге
+        if (Math.random() > 0.5) {
+          // На вертикальной дороге
+          mission.destX = roadsX[Math.floor(Math.random() * roadsX.length)];
+          mission.destY = Math.random() * WORLD_SIZE;
+        } else {
+          // На горизонтальной дороге
+          mission.destX = Math.random() * WORLD_SIZE;
+          mission.destY = roadsY[Math.floor(Math.random() * roadsY.length)];
+        }
       }
     }
 
-    // Проверка доезда до точки
     if (mission.active && gameState.inCar) {
       let distToDest = Math.hypot(car.x - mission.destX, car.y - mission.destY);
       if (distToDest < 150) {
@@ -265,7 +280,6 @@
       }
     }
 
-    // Физика
     if (gameState.inCar) {
       if (isUp()) car.speed += car.accel;
       if (isDown()) car.speed -= car.accel;
@@ -308,7 +322,6 @@
       player.y += Math.sin(player.angle) * player.speed;
     }
 
-    // Ограничение мира
     if (player.x < 0) { player.x = 0; player.speed = 0; }
     if (player.y < 0) { player.y = 0; player.speed = 0; }
     if (player.x > WORLD_SIZE) { player.x = WORLD_SIZE; player.speed = 0; }
@@ -373,7 +386,7 @@
     ctx.fillText(name, x, y - 60);
   }
 
-  // ИСПРАВЛЕННАЯ ОТРИСОВКА МАШИНЫ
+  // ИСПРАВЛЕННЫЙ САЛОН МАШИНЫ (Оба внутри)
   function drawCar() {
     ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
     
@@ -384,15 +397,21 @@
     ctx.fillStyle = car.color; ctx.fillRect(-car.width/2, -car.height/2, car.width, car.height);
     ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.strokeRect(-car.width/2, -car.height/2, car.width, car.height);
     
-    // Лобовое стекло (спереди)
-    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(10, -car.height/2 + 5, 25, car.height - 10); 
-    // Заднее стекло
-    ctx.fillRect(-35, -car.height/2 + 5, 20, car.height - 10);
+    // Стекла
+    ctx.fillStyle = '#1a1a1a'; 
+    ctx.fillRect(10, -car.height/2 + 5, 25, car.height - 10); // Лобовое
+    ctx.fillRect(-35, -car.height/2 + 5, 20, car.height - 10); // Заднее
 
-    // Голова Егора на пассажирском сиденье (справа)
+    // Голова Равиля (Водитель, слева)
+    if (gameState.inCar) {
+      ctx.fillStyle = '#fcd0b3';
+      ctx.beginPath(); ctx.arc(-10, 0, 6, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Голова Егора (Пассажир, справа)
     if (egor.state === 'inCar') {
       ctx.fillStyle = '#fcd0b3';
-      ctx.beginPath(); ctx.arc(20, -10, 6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(15, 0, 6, 0, Math.PI*2); ctx.fill();
     }
 
     // Фары (Спереди)
@@ -423,22 +442,22 @@
 
     const scale = mapSize / WORLD_SIZE;
 
-    // Дороги на карте
+    // Дороги
     ctx.fillStyle = '#333';
     for (let rx of roadsX) ctx.fillRect((rx - ROAD_WIDTH/2) * scale, 0, ROAD_WIDTH * scale, mapSize);
     for (let ry of roadsY) ctx.fillRect(0, (ry - ROAD_WIDTH/2) * scale, mapSize, ROAD_WIDTH * scale);
 
-    // Игрок (Синий)
+    // Равиль
     ctx.fillStyle = '#3498db';
     ctx.beginPath(); ctx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI*2); ctx.fill();
 
-    // Егор (Красный)
+    // Егор
     if (egor.state !== 'inCar') {
       ctx.fillStyle = '#e74c3c';
       ctx.beginPath(); ctx.arc(egor.x * scale, egor.y * scale, 3, 0, Math.PI*2); ctx.fill();
     }
 
-    // Точка назначения (Зеленая)
+    // Цель
     if (mission.active) {
       ctx.fillStyle = '#2ecc71';
       ctx.beginPath(); ctx.arc(mission.destX * scale, mission.destY * scale, 4, 0, Math.PI*2); ctx.fill();
@@ -485,33 +504,26 @@
       }
     });
 
-    // Магазины (С крышей и дверью)
+    // Магазины
     shops.forEach(s => {
       if (s.x > camera.x - 300 && s.x < camera.x + W + 300 && s.y > camera.y - 300 && s.y < camera.y + H + 300) {
-        // Тень
         ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(s.x + 10, s.y + 10, s.w, s.h);
-        // Стены
         ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h);
-        // Крыша (темнее)
         ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(s.x, s.y, s.w, 40);
-        // Вывеска
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center';
         ctx.fillText(s.name, s.x + s.w/2, s.y + 28);
-        // Дверь
         ctx.fillStyle = '#111'; ctx.fillRect(s.x + s.w/2 - 25, s.y + s.h - 20, 50, 20);
       }
     });
 
-    // Линия до цели (если активна миссия)
+    // Линия и метка цели
     if (mission.active) {
-      // Пунктирная линия
       ctx.strokeStyle = 'rgba(46, 204, 113, 0.6)';
       ctx.lineWidth = 3;
       ctx.setLineDash([15, 15]);
       ctx.beginPath(); ctx.moveTo(car.x, car.y); ctx.lineTo(mission.destX, mission.destY); ctx.stroke();
       ctx.setLineDash([]);
       
-      // Пульсирующая метка
       const pulse = Math.sin(Date.now() / 200) * 10 + 20;
       ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(mission.destX, mission.destY, pulse + 10, 0, Math.PI*2); ctx.stroke();
@@ -524,7 +536,6 @@
 
     ctx.restore();
 
-    // Рисуем мини-карту поверх всего
     drawMinimap();
   }
 
