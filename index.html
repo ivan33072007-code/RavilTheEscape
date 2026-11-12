@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Adventure 2D - Novy Byt Expanded</title>
+<title>Adventure 2D - Novy Byt Ultimate</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: system-ui, sans-serif; }
@@ -13,7 +13,11 @@
   #hud { position: absolute; top: 20px; left: 20px; color: #fff; font-weight: bold; font-size: 18px; text-shadow: 0 2px 4px #000; pointer-events: none; }
   #hud div { margin-bottom: 5px; }
   .stat-value { color: #f1c40f; }
-  #hud-quest { color: #2ecc71; margin-top: 10px; display: none; text-shadow: 0 0 5px #000; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 5px; border-left: 4px solid #2ecc71; }
+  
+  #hud-inventory { margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.6); border-radius: 5px; border-left: 4px solid #3498db; font-size: 14px; display: none; }
+  .inv-item { color: #3498db; margin-left: 10px; }
+
+  #hud-quest { color: #2ecc71; margin-top: 10px; display: none; text-shadow: 0 0 5px #000; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 5px; border-left: 4px solid #2ecc71; font-size: 15px; }
 
   #stamina-label { font-size: 12px; color: #aaa; margin-top: 8px; margin-bottom: 2px; }
   #stamina-container { width: 150px; height: 10px; background: rgba(0,0,0,0.5); border: 1px solid #555; border-radius: 5px; overflow: hidden; }
@@ -67,6 +71,7 @@
   <div id="hud">
     <div>Деньги: <span class="stat-value" id="hud-money">2000</span> ₽</div>
     <div>Настроение: <span class="stat-value" id="hud-mood">50</span>%</div>
+    
     <div id="stamina-label">Выносливость:</div>
     <div id="stamina-container"><div id="stamina-bar"></div></div>
     
@@ -83,6 +88,11 @@
     </div>
     <div id="health-bar-container"><div id="health-bar"></div></div>
     
+    <div id="hud-inventory">
+      Инвентарь:
+      <div id="inventory-list"></div>
+    </div>
+
     <div id="hud-quest">Задание: Нет</div>
   </div>
 
@@ -122,7 +132,7 @@
 </div>
 
 <script>
-  // Полифилл roundRect
+  // Полифилл для roundRect на старых браузерах
   if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
     CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
       let tl, tr, br, bl;
@@ -143,11 +153,44 @@
   function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
   window.addEventListener('resize', resize); resize();
 
-  // --- ВРЕМЯ И ДЕНЬ/НОЧЬ ---
+  // ==========================================
+  // ВРЕМЯ И ПОГОДА
+  // ==========================================
   const DAY_DURATION = 10 * 60 * 1000;
   const NIGHT_DURATION = 5 * 60 * 1000;
   const TOTAL_CYCLE = DAY_DURATION + NIGHT_DURATION;
   const gameStartTime = Date.now();
+
+  let weather = { isRaining: false, rainIntensity: 0 };
+  let rainDrops = [];
+
+  function updateWeather() {
+    if (!weather.isRaining && Math.random() < 0.0005) {
+      weather.isRaining = true;
+      showNotif("Начался дождь! Сцепление с дорогой ухудшилось.", "#3498db");
+    } else if (weather.isRaining && Math.random() < 0.0002) {
+      weather.isRaining = false;
+      showNotif("Дождь прекратился.", "#f1c40f");
+    }
+    
+    if (weather.isRaining) {
+      weather.rainIntensity = Math.min(1, weather.rainIntensity + 0.01);
+      if (rainDrops.length < 200 && Math.random() < 0.5) {
+        rainDrops.push({ x: Math.random() * W, y: Math.random() * -H, speed: 15 + Math.random() * 10, length: 10 + Math.random() * 20 });
+      }
+      for (let i = rainDrops.length - 1; i >= 0; i--) {
+        rainDrops[i].y += rainDrops[i].speed;
+        rainDrops[i].x -= rainDrops[i].speed * 0.2; // Ветер
+        if (rainDrops[i].y > H) {
+          rainDrops[i].y = -rainDrops[i].length;
+          rainDrops[i].x = Math.random() * W;
+        }
+      }
+    } else {
+      weather.rainIntensity = Math.max(0, weather.rainIntensity - 0.01);
+      rainDrops = [];
+    }
+  }
 
   function getTimeData() {
     let elapsed = Date.now() - gameStartTime;
@@ -173,7 +216,9 @@
     return { isNight, alpha, timeString: `${h}:${m}` };
   }
 
-  // --- АУДИО ---
+  // ==========================================
+  // АУДИО
+  // ==========================================
   let audioCtx, masterGain, engineOsc1, engineOsc2, engineGain, engineFilter;
   let ambientOsc, ambientGain;
 
@@ -227,7 +272,9 @@
 
   document.getElementById('vol-music').addEventListener('input', (e) => { bgMusic.volume = parseFloat(e.target.value); });
 
-  // --- ЧАСТИЦЫ ---
+  // ==========================================
+  // ЧАСТИЦЫ И ЭФФЕКТЫ
+  // ==========================================
   let particles = [];
   let skidmarks = [];
 
@@ -255,29 +302,47 @@
     for(let i=0; i<15; i++) { particles.push({ x: rearX + (Math.random() - 0.5) * 20, y: rearY + (Math.random() - 0.5) * 20, vx: -Math.cos(car.angle) * 8 + (Math.random() - 0.5) * 6, vy: -Math.sin(car.angle) * 8 + (Math.random() - 0.5) * 6, life: 1.0, size: 10 + Math.random() * 15, color: Math.random() > 0.5 ? '#ff5500' : '#ffaa00' }); }
   }
 
-  // --- КАРТА ---
-  const WORLD_SIZE = 14000;
+  function spawnSmoke() {
+    if (car.health < 50 && Math.random() < 0.2) {
+      let engineX = car.x + Math.cos(car.angle) * (car.width/3);
+      let engineY = car.y + Math.sin(car.angle) * (car.width/3);
+      particles.push({
+        x: engineX, y: engineY,
+        vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2 - 1,
+        life: 1.0, size: 15 + Math.random() * 20,
+        color: car.health < 20 ? '#222' : '#888'
+      });
+    }
+  }
+
+  // ==========================================
+  // КАРТА И МИР (РАСШИРЕННАЯ)
+  // ==========================================
+  const WORLD_SIZE = 16000;
   const ROAD_WIDTH = 300;
   const SMALL_ROAD_WIDTH = 150;
 
   const roadSegments = [
-    { x1: 7000, y1: 0, x2: 7000, y2: 14000, w: ROAD_WIDTH },
-    { x1: 0, y1: 5000, x2: 14000, y2: 5000, w: ROAD_WIDTH },
-    { x1: 3000, y1: 3000, x2: 3000, y2: 11000, w: SMALL_ROAD_WIDTH },
-    { x1: 1000, y1: 2000, x2: 7000, y2: 2000, w: SMALL_ROAD_WIDTH },
-    { x1: 7000, y1: 3000, x2: 11000, y2: 3000, w: SMALL_ROAD_WIDTH }, 
-    { x1: 7000, y1: 4000, x2: 11000, y2: 4000, w: SMALL_ROAD_WIDTH }, 
-    { x1: 3000, y1: 3500, x2: 7000, y2: 3500, w: SMALL_ROAD_WIDTH },
-    { x1: 3000, y1: 6000, x2: 7000, y2: 6000, w: SMALL_ROAD_WIDTH }, 
-    { x1: 0, y1: 6500, x2: 3000, y2: 6500, w: SMALL_ROAD_WIDTH },
-    { x1: 7000, y1: 9000, x2: 12000, y2: 9000, w: SMALL_ROAD_WIDTH },
-    { x1: 10000, y1: 3000, x2: 10000, y2: 9000, w: SMALL_ROAD_WIDTH }
+    // Главные
+    { x1: 8000, y1: 0, x2: 8000, y2: 16000, w: ROAD_WIDTH },
+    { x1: 0, y1: 6000, x2: 16000, y2: 6000, w: ROAD_WIDTH },
+    { x1: 0, y1: 10000, x2: 16000, y2: 10000, w: ROAD_WIDTH },
+    // Второстепенные
+    { x1: 4000, y1: 3000, x2: 4000, y2: 13000, w: SMALL_ROAD_WIDTH },
+    { x1: 12000, y1: 3000, x2: 12000, y2: 13000, w: SMALL_ROAD_WIDTH },
+    { x1: 1000, y1: 2000, x2: 8000, y2: 2000, w: SMALL_ROAD_WIDTH },
+    { x1: 8000, y1: 4000, x2: 13000, y2: 4000, w: SMALL_ROAD_WIDTH },
+    { x1: 4000, y1: 4500, x2: 8000, y2: 4500, w: SMALL_ROAD_WIDTH },
+    { x1: 4000, y1: 7500, x2: 8000, y2: 7500, w: SMALL_ROAD_WIDTH },
+    { x1: 8000, y1: 8000, x2: 14000, y2: 8000, w: SMALL_ROAD_WIDTH },
+    { x1: 0, y1: 13000, x2: 4000, y2: 13000, w: SMALL_ROAD_WIDTH },
+    { x1: 12000, y1: 12000, x2: 16000, y2: 12000, w: SMALL_ROAD_WIDTH }
   ];
 
-  const waterAreas = [{ x: 0, y: 6500, w: 2500, h: 3500 }];
+  const waterAreas = [{ x: 0, y: 7500, w: 3500, h: 4000 }];
   waterAreas.forEach(w => {
     w.sparkles = [];
-    for (let i = 0; i < 100; i++) w.sparkles.push({ x: w.x + Math.random()*w.w, y: w.y + Math.random()*w.h, w: 80+Math.random()*100, h: 6+Math.random()*8 });
+    for (let i = 0; i < 150; i++) w.sparkles.push({ x: w.x + Math.random()*w.w, y: w.y + Math.random()*w.h, w: 80+Math.random()*100, h: 6+Math.random()*8 });
   });
 
   function distToSegmentSq(px, py, x1, y1, x2, y2) {
@@ -293,20 +358,23 @@
   }
   function isInWater(x, y) {
     for (let w of waterAreas) if (x > w.x && x < w.x+w.w && y > w.y && y < w.y+w.h) {
-        if (distToSegmentSq(x, y, 0, 6500, 3000, 6500) < (SMALL_ROAD_WIDTH/2 + 20)**2) return false;
+        if (distToSegmentSq(x, y, 0, 7500, 4000, 7500) < (SMALL_ROAD_WIDTH/2 + 20)**2) return false;
+        if (distToSegmentSq(x, y, 0, 10000, 4000, 10000) < (ROAD_WIDTH/2 + 20)**2) return false;
         return true;
     }
     return false;
   }
 
-  // --- ИГРОВЫЕ ДАННЫЕ ---
+  // ==========================================
+  // ИГРОВЫЕ ДАННЫЕ
+  // ==========================================
   let gameState = { inCar: false, activePanel: null, activeQuest: null };
-  let stats = { money: 2000, mood: 50, hasNitro: false, hasShawarma: false, hasPart: false };
+  let stats = { money: 2000, mood: 50, hasNitro: false, inventory: [] };
   
-  const player = { x: 6800, y: 5200, angle: -Math.PI/2, speed: 0, walkSpeed: 1.0, sprintSpeed: 2.0, accel: 0.08, friction: 0.85, turnSpeed: 0.15, color: '#3498db', name: "Равиль", walkCycle: 0, stamina: 100, maxStamina: 100, isSprinting: false, radius: 18, lastStepTrigger: 0 };
+  const player = { x: 7800, y: 6200, angle: -Math.PI/2, speed: 0, walkSpeed: 1.0, sprintSpeed: 2.0, accel: 0.08, friction: 0.85, turnSpeed: 0.15, color: '#3498db', name: "Равиль", walkCycle: 0, stamina: 100, maxStamina: 100, isSprinting: false, radius: 18, lastStepTrigger: 0 };
   
   const car = { 
-    x: 7200, y: 5200, angle: -Math.PI/2, vx: 0, vy: 0, speed: 0, 
+    x: 8200, y: 6200, angle: -Math.PI/2, vx: 0, vy: 0, speed: 0, 
     maxSpeed: 22, accel: 0.22, turnSpeed: 0.05, grip: 0.15, drag: 0.97, 
     width: 150, height: 75, color: '#0a0a0a', isEngineOn: false, headlights: false, lastGear: 0, 
     fuel: 50, maxFuel: 50, consumption: 0.0001, health: 100, maxHealth: 100
@@ -316,30 +384,37 @@
   const keys = {};
   const trees = [];
   const houses = [];
+  const streetLights = [];
 
   const locations = [
-    { id: 'pyaterochka', x: 6300, y: 4600, w: 200, h: 150, name: "Пятерочка", color: "#e74c3c", type: 'shop' },
-    { id: 'dixy', x: 6000, y: 1800, w: 200, h: 150, name: "Дикси", color: "#27ae60", type: 'shop' },
-    { id: 'shawarma', x: 7300, y: 5300, w: 150, h: 100, name: "Шаурма", color: "#d35400", type: 'shawarma' },
-    { id: 'gas', x: 7300, y: 3200, w: 250, h: 150, name: "Заправка", color: "#27ae60", type: 'gas' },
-    { id: 'garage', x: 3300, y: 6200, w: 250, h: 200, name: "Автосервис", color: "#7f8c8d", type: 'garage' },
-    { id: 'monastery', x: 11500, y: 8500, w: 400, h: 400, name: "Давидова Пустынь", color: "#f1c40f", type: 'landmark' },
-    { id: 'museum', x: 2500, y: 8500, w: 300, h: 250, name: "Музей Тракторов", color: "#95a5a6", type: 'landmark' },
-    { id: 'memorial', x: 7500, y: 1500, w: 200, h: 100, name: "Мемориал ВОВ", color: "#bdc3c7", type: 'landmark' }
+    { id: 'pyaterochka', x: 7200, y: 5500, w: 200, h: 150, name: "Пятерочка", color: "#e74c3c", type: 'shop' },
+    { id: 'lenta', x: 9000, y: 9500, w: 400, h: 300, name: "Лента", color: "#f39c12", type: 'shop' },
+    { id: 'dixy', x: 3500, y: 2000, w: 200, h: 150, name: "Дикси", color: "#27ae60", type: 'shop' },
+    { id: 'shawarma', x: 8300, y: 6300, w: 150, h: 100, name: "Шаурма", color: "#d35400", type: 'shawarma' },
+    { id: 'gas', x: 8300, y: 3800, w: 250, h: 150, name: "Заправка", color: "#27ae60", type: 'gas' },
+    { id: 'garage', x: 3800, y: 7200, w: 250, h: 200, name: "Автосервис", color: "#7f8c8d", type: 'garage' },
+    { id: 'monastery', x: 13500, y: 11000, w: 500, h: 500, name: "Давидова Пустынь", color: "#f1c40f", type: 'landmark' },
+    { id: 'museum', x: 2500, y: 11000, w: 300, h: 250, name: "Музей Тракторов", color: "#95a5a6", type: 'landmark' },
+    { id: 'memorial', x: 8500, y: 1500, w: 250, h: 150, name: "Мемориал ВОВ", color: "#bdc3c7", type: 'landmark' },
+    { id: 'park', x: 10000, y: 1500, w: 1000, h: 1000, name: "Лесопарк", color: "#27ae60", type: 'landmark' }
   ];
 
   const npcs = [
-    { id: 'egor', x: 6700, y: 5100, color: '#e74c3c', name: "Егор", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.5 },
-    { id: 'misha', x: 7400, y: 5450, color: '#f39c12', name: "Миша", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.2 },
-    { id: 'vanya', x: 3450, y: 6350, color: '#2980b9', name: "Ваня", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.2 },
-    { id: 'nefed', x: 11500, y: 8900, color: '#8e44ad', name: "Отец Нефёд", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.0 },
-    { id: 'pasha', x: 2500, y: 8800, color: '#2c3e50', name: "Паша", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.2 },
-    { id: 'shelukha', x: 7500, y: 3100, color: '#c0392b', name: "Шелуха", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.5 }
+    { id: 'egor', x: 7700, y: 6100, color: '#e74c3c', name: "Егор", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.5 },
+    { id: 'misha', x: 8400, y: 6450, color: '#f39c12', name: "Миша", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.2 },
+    { id: 'vanya', x: 3950, y: 7350, color: '#2980b9', name: "Ваня", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.2 },
+    { id: 'nefed', x: 13500, y: 11500, color: '#8e44ad', name: "Отец Нефёд", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.0 },
+    { id: 'pasha', x: 2500, y: 11300, color: '#2c3e50', name: "Паша", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.2 },
+    { id: 'shelukha', x: 8500, y: 3700, color: '#c0392b', name: "Шелуха", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.5 },
+    { id: 'gosha', x: 9000, y: 5500, color: '#16a085', name: "Гоша", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.2 },
+    { id: 'lyokha', x: 11500, y: 10500, color: '#d35400', name: "Лёха", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.2 },
+    { id: 'katya', x: 7500, y: 9500, color: '#e84393', name: "Катя", state: 'idle', walkCycle: 0, angle: 0, radius: 18, speed: 1.2 }
   ];
 
   function initWorld() {
-    for (let x = 1000; x < WORLD_SIZE; x += 400) {
-        for (let y = 1000; y < WORLD_SIZE; y += 400) {
+    // Дома и деревья
+    for (let x = 1000; x < WORLD_SIZE; x += 350) {
+        for (let y = 1000; y < WORLD_SIZE; y += 350) {
             if (Math.hypot(x - player.x, y - player.y) < 600) continue;
             if (isOnRoad(x, y, 100) || isInWater(x, y)) continue;
             
@@ -347,7 +422,7 @@
             for(let s of locations) { if (x < s.x + s.w + 100 && x + 150 > s.x - 100 && y < s.y + s.h + 100 && y + 150 > s.y - 100) overlap = true; }
             
             if (!overlap) {
-                if (Math.random() > 0.7) trees.push({ x, y, r: 30 + Math.random()*20 });
+                if (Math.random() > 0.6) trees.push({ x, y, r: 30 + Math.random()*20 });
                 else {
                     let hw = 80 + Math.random()*60, hh = 80 + Math.random()*60;
                     if (!isOnRoad(x+hw, y, 40) && !isOnRoad(x, y+hh, 40) && !isOnRoad(x+hw, y+hh, 40)) {
@@ -357,10 +432,19 @@
             }
         }
     }
+    
+    // Фонари вдоль главных дорог
+    for (let i = 2000; i < WORLD_SIZE; i += 400) {
+        if (!isInWater(i, 6000)) streetLights.push({ x: i, y: 5800 });
+        if (!isInWater(i, 10000)) streetLights.push({ x: i, y: 9800 });
+        if (!isInWater(8000, i)) streetLights.push({ x: 7800, y: i });
+    }
   }
   initWorld();
 
-  // --- УПРАВЛЕНИЕ ---
+  // ==========================================
+  // УПРАВЛЕНИЕ И UI
+  // ==========================================
   window.addEventListener('blur', () => { for(let k in keys) keys[k] = false; });
   window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
@@ -381,7 +465,6 @@
   function isLeft() { return keys['a'] || keys['ф'] || keys['arrowleft']; }
   function isRight() { return keys['d'] || keys['в'] || keys['arrowright']; }
 
-  // --- UI ---
   function showNotif(text, color = '#f1c40f') {
     const n = document.getElementById('notification');
     n.textContent = text; n.style.borderColor = color; n.style.color = color;
@@ -393,17 +476,30 @@
     }, 3000);
   }
 
-  function updateQuestHUD() {
-    const q = document.getElementById('hud-quest');
-    if (gameState.activeQuest) { q.style.display = 'block'; q.textContent = `Задание: ${gameState.activeQuest.text}`; } 
-    else { q.style.display = 'none'; }
-  }
-
   function updateHUD() {
     document.getElementById('hud-money').textContent = Math.floor(stats.money);
     document.getElementById('hud-mood').textContent = stats.mood;
     document.getElementById('stamina-bar').style.width = (player.stamina / player.maxStamina * 100) + '%';
     document.getElementById('stamina-bar').style.background = player.stamina < 30 ? '#e74c3c' : '#e67e22';
+    
+    // Инвентарь
+    const invDiv = document.getElementById('hud-inventory');
+    const invList = document.getElementById('inventory-list');
+    if (stats.inventory.length > 0) {
+        invDiv.style.display = 'block';
+        invList.innerHTML = '';
+        stats.inventory.forEach(item => {
+            const d = document.createElement('div'); d.className = 'inv-item'; d.textContent = `- ${item}`;
+            invList.appendChild(d);
+        });
+    } else {
+        invDiv.style.display = 'none';
+    }
+
+    // Квест
+    const q = document.getElementById('hud-quest');
+    if (gameState.activeQuest) { q.style.display = 'block'; q.textContent = `Задание: ${gameState.activeQuest.text}`; } 
+    else { q.style.display = 'none'; }
     
     document.getElementById('fuel-bar-container').style.display = gameState.inCar ? 'block' : 'none';
     document.getElementById('fuel-label').style.display = gameState.inCar ? 'flex' : 'none';
@@ -439,13 +535,15 @@
 
   function respawnCar(isManual = false) {
     if (isManual && stats.money >= 100) { stats.money -= 100; showNotif("Эвакуация: -100 ₽", "#e74c3c"); }
-    car.x = 7200; car.y = 5200; car.vx = 0; car.vy = 0; car.angle = -Math.PI/2; car.isEngineOn = false;
-    player.x = 6800; player.y = 5200; gameState.inCar = false;
+    car.x = 8200; car.y = 6200; car.vx = 0; car.vy = 0; car.angle = -Math.PI/2; car.isEngineOn = false;
+    player.x = 7800; player.y = 6200; gameState.inCar = false;
     stopEngineSound(); bgMusic.pause(); bgMusic.currentTime = 0;
     updateHUD();
   }
 
-  // --- ВЗАИМОДЕЙСТВИЕ ---
+  // ==========================================
+  // ВЗАИМОДЕЙСТВИЕ И ДИАЛОГИ
+  // ==========================================
   function interact() {
     if (gameState.activePanel) return;
 
@@ -487,24 +585,28 @@
     }
   }
 
-  // --- ДИАЛОГИ И КВЕСТЫ ---
   function openDialogue(npc) {
     let title = npc.name, text = "", choices = [];
 
     if (npc.id === 'misha') {
       text = "Ммм... Шаурма. Слушай, Равиль, принеси мне шаурму от Ноны, а я тебе сотку накину!";
-      if (stats.hasShawarma) {
-        choices.push({ text: "Держи (Отдать шаурму)", action: () => { stats.hasShawarma = false; stats.money += 100; stats.mood += 5; showNotif("Миша доволен! +100 ₽", "#2ecc71"); closeDialogue(); }});
+      if (stats.inventory.includes("Шаурма")) {
+        choices.push({ text: "Держи (Отдать шаурму)", action: () => { 
+            stats.inventory = stats.inventory.filter(i => i !== "Шаурма"); 
+            stats.money += 100; stats.mood += 5; 
+            showNotif("Миша доволен! +100 ₽", "#2ecc71"); closeDialogue(); }});
       } else { choices.push({ text: "Ладно, жди.", action: () => closeDialogue() }); }
     } 
     else if (npc.id === 'vanya') {
       text = "Привет. Мне тут деталь подвезти должны были, но я не могу отойти от сервиса. Сгоняешь в Пятерочку? Там мужик стоит, отдай ему записку.";
-      if (stats.hasPart) {
-        choices.push({ text: "Вот деталь.", action: () => { stats.hasPart = false; stats.money += 400; showNotif("Ваня починил твое авто! +400 ₽", "#2ecc71"); car.health = 100; closeDialogue(); }});
+      if (stats.inventory.includes("Деталь")) {
+        choices.push({ text: "Вот деталь.", action: () => { 
+            stats.inventory = stats.inventory.filter(i => i !== "Деталь"); 
+            stats.money += 400; showNotif("Ваня починил твое авто! +400 ₽", "#2ecc71"); car.health = 100; closeDialogue(); }});
       } else if (gameState.activeQuest && gameState.activeQuest.id === 'vanya') {
         choices.push({ text: "Я еще ищу.", action: () => closeDialogue() });
       } else {
-        choices.push({ text: "Давай записку.", action: () => { gameState.activeQuest = { id: 'vanya', text: 'Найти деталь в Пятерочке' }; updateQuestHUD(); closeDialogue(); }});
+        choices.push({ text: "Давай записку.", action: () => { gameState.activeQuest = { id: 'vanya', text: 'Найти деталь в Пятерочке' }; closeDialogue(); }});
       }
     }
     else if (npc.id === 'nefed') {
@@ -516,13 +618,27 @@
       text = "Слушай, брат, у меня сделка подгорает. Надо гнать в Музей Тракторов, но моя машина сломалась. Подкинешь меня?";
       if (gameState.activeQuest && gameState.activeQuest.id === 'pasha') { choices.push({ text: "Мы уже едем.", action: () => closeDialogue() }); } 
       else {
-        choices.push({ text: "Прыгай в тачку.", action: () => { gameState.activeQuest = { id: 'pasha', text: 'Отвезти Пашу в Музей Тракторов' }; updateQuestHUD(); npc.state = 'inCar'; npc.angle = car.angle; closeDialogue(); }});
+        choices.push({ text: "Прыгай в тачку.", action: () => { gameState.activeQuest = { id: 'pasha', text: 'Отвезти Пашу в Музей Тракторов' }; npc.state = 'inCar'; npc.angle = car.angle; closeDialogue(); }});
       }
     }
     else if (npc.id === 'shelukha') {
       text = "О, Равиль! Мазду прокачал? Есть заезд на Мемориал, мажем по 1000 рублей. Слабо?";
-      choices.push({ text: "Забились!", action: () => { if(stats.money >= 1000) { gameState.activeQuest = { id: 'shelukha', text: 'Доехать до Мемориала первым' }; updateQuestHUD(); stats.money -= 1000; closeDialogue(); } else showNotif("Нет денег!", "#e74c3c"); }});
+      choices.push({ text: "Забились!", action: () => { if(stats.money >= 1000) { gameState.activeQuest = { id: 'shelukha', text: 'Доехать до Мемориала первым' }; stats.money -= 1000; closeDialogue(); } else showNotif("Нет денег!", "#e74c3c"); }});
       choices.push({ text: "Я пас.", action: () => closeDialogue() });
+    }
+    else if (npc.id === 'gosha') {
+      text = "Эй, шеф! Подбросишь до Ленты? Заплачу 300 рублей.";
+      choices.push({ text: "Садись.", action: () => { gameState.activeQuest = { id: 'gosha', text: 'Отвезти Гошу в Ленту' }; npc.state = 'inCar'; npc.angle = car.angle; closeDialogue(); }});
+      choices.push({ text: "Не по пути.", action: () => closeDialogue() });
+    }
+    else if (npc.id === 'lyokha') {
+      text = "Слышал, у тебя тачка огонь. Хочешь купить редкий тюнинг? 3000 рублей.";
+      choices.push({ text: "Беру.", action: () => { if(stats.money >= 3000) { stats.money -= 3000; stats.hasNitro = true; showNotif("Нитро установлено!", "#e74c3c"); } closeDialogue(); }});
+      choices.push({ text: "Дорого.", action: () => closeDialogue() });
+    }
+    else if (npc.id === 'katya') {
+      text = "Приветик! Не подскажешь, как доехать до автосервиса?";
+      choices.push({ text: "Показать на карте.", action: () => { showNotif("Автосервис находится на юго-западе.", "#3498db"); closeDialogue(); }});
     }
     else {
       text = "Здарова! Чего хотел?";
@@ -535,22 +651,23 @@
     const container = document.getElementById('dialogue-choices'); container.innerHTML = '';
     choices.forEach(c => { const btn = document.createElement('button'); btn.className = 'btn'; btn.textContent = c.text; btn.onclick = c.action; container.appendChild(btn); });
   }
-  function closeDialogue() { gameState.activePanel = null; document.getElementById('dialogue-panel').style.display = 'none'; }
+  function closeDialogue() { gameState.activePanel = null; document.getElementById('dialogue-panel').style.display = 'none'; updateHUD(); }
 
-  // --- МАГАЗИНЫ ---
+  // ==========================================
+  // МАГАЗИНЫ И СЕРВИСЫ
+  // ==========================================
   function openShopMenu(loc) {
     gameState.activePanel = 'shop'; document.getElementById('shop-panel').style.display = 'flex';
     document.getElementById('shop-title').textContent = loc.name;
     const container = document.getElementById('shop-items'); container.innerHTML = '';
     
     const items = [
-        { name: "Шаурма (Взять с собой)", price: 300, action: () => { stats.hasShawarma = true; } },
         { name: "Энергетик (Восстановить силы)", price: 100, action: () => { player.stamina = 100; } },
         { name: "Купить еды (+10 настр.)", price: 150, action: () => { stats.mood = Math.min(100, stats.mood + 10); } }
     ];
 
     if (loc.id === 'pyaterochka' && gameState.activeQuest && gameState.activeQuest.id === 'vanya') {
-        items.push({ name: "Забрать деталь у мужика", price: 0, action: () => { stats.hasPart = true; gameState.activeQuest = null; updateQuestHUD(); } });
+        items.push({ name: "Забрать деталь у мужика", price: 0, action: () => { stats.inventory.push("Деталь"); gameState.activeQuest = null; } });
     }
 
     items.forEach(item => {
@@ -572,7 +689,7 @@
     
     const btn2 = document.createElement('button'); btn2.className = 'btn';
     btn2.innerHTML = `<span>Взять с собой</span> <span class="btn-price">300 ₽</span>`;
-    btn2.onclick = () => { if(stats.money>=300) { stats.money-=300; stats.hasShawarma=true; updateHUD(); showNotif("Взял шаурму!"); closeShop(); } };
+    btn2.onclick = () => { if(stats.money>=300) { stats.money-=300; stats.inventory.push("Шаурма"); updateHUD(); showNotif("Взял шаурму!"); closeShop(); } };
     
     container.appendChild(btn1); container.appendChild(btn2);
   }
@@ -601,7 +718,7 @@
     const actions = [
         { name: "Ремонт кузова", price: 500, action: () => { car.health = 100; } },
         { name: "Установить Нитро", price: 2000, action: () => { stats.hasNitro = true; } },
-        { name: "Покрасить в Красный", price: 500, action: () => { car.color = '#c0392b'; } },
+        { name: "Покрасить в Синий", price: 500, action: () => { car.color = '#2980b9'; } },
         { name: "Тюнинг двигателя", price: 1500, action: () => { car.maxSpeed = 35; car.accel = 0.3; } }
     ];
 
@@ -616,9 +733,11 @@
     });
   }
 
-  function closeShop() { gameState.activePanel = null; document.getElementById('shop-panel').style.display = 'none'; }
+  function closeShop() { gameState.activePanel = null; document.getElementById('shop-panel').style.display = 'none'; updateHUD(); }
 
-  // --- ФИЗИКА ---
+  // ==========================================
+  // ФИЗИКА
+  // ==========================================
   function getCarCircles(cx, cy) {
     return [
       { x: cx + Math.cos(car.angle) * 45, y: cy + Math.sin(car.angle) * 45, r: 35 },
@@ -629,6 +748,7 @@
 
   function checkCarCollisions(cx, cy) {
     let circles = getCarCircles(cx, cy);
+    // Магазины
     for (let loc of locations) {
       for (let c of circles) {
         let closestX = Math.max(loc.x, Math.min(c.x, loc.x + loc.w));
@@ -636,6 +756,7 @@
         if ((c.x - closestX)**2 + (c.y - closestY)**2 < c.r**2) return true;
       }
     }
+    // Дома
     for (let h of houses) {
       if (Math.abs(h.x - cx) > 200 || Math.abs(h.y - cy) > 200) continue;
       for (let c of circles) {
@@ -644,6 +765,14 @@
         if ((c.x - closestX)**2 + (c.y - closestY)**2 < c.r**2) return true;
       }
     }
+    // Деревья
+    for (let t of trees) {
+      if (Math.abs(t.x - cx) > 200 || Math.abs(t.y - cy) > 200) continue;
+      for (let c of circles) {
+        if (Math.hypot(c.x - t.x, c.y - t.y) < c.r + t.r * 0.3) return true; // Столкновение только со стволом
+      }
+    }
+    // NPC
     for (let npc of npcs) {
         if(npc.state === 'inCar') continue;
         for (let c of circles) if (Math.hypot(c.x - npc.x, c.y - npc.y) < c.r + npc.radius) return true;
@@ -652,27 +781,39 @@
   }
 
   function update() {
+    updateWeather();
     if (gameState.activePanel) return;
 
     // Частицы
     for(let i = particles.length - 1; i >= 0; i--) { let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.04; if(p.life <= 0) particles.splice(i, 1); }
     for(let i = skidmarks.length - 1; i >= 0; i--) { skidmarks[i].life -= 0.01; if(skidmarks[i].life <= 0) skidmarks.splice(i, 1); }
 
+    // Дым при поломке
+    spawnSmoke();
+
     // Квесты по локациям
     if (gameState.activeQuest && gameState.inCar) {
         if (gameState.activeQuest.id === 'pasha') {
             let museum = locations.find(l => l.id === 'museum');
-            if (Math.hypot(car.x - museum.x, car.y - museum.y) < 200) {
-                stats.money += 800; gameState.activeQuest = null; updateQuestHUD();
+            if (Math.hypot(car.x - museum.x, car.y - museum.y) < 250) {
+                stats.money += 800; gameState.activeQuest = null;
                 showNotif("Паша: Спасибо, брат! +800 ₽", "#2ecc71");
                 let p = npcs.find(n => n.id === 'pasha'); p.state = 'idle'; p.x = car.x + 80; p.y = car.y + 80;
             }
         }
         if (gameState.activeQuest.id === 'shelukha') {
             let mem = locations.find(l => l.id === 'memorial');
-            if (Math.hypot(car.x - mem.x, car.y - mem.y) < 200) {
-                stats.money += 2000; gameState.activeQuest = null; updateQuestHUD();
+            if (Math.hypot(car.x - mem.x, car.y - mem.y) < 250) {
+                stats.money += 2000; gameState.activeQuest = null;
                 showNotif("Шелуха: Чисто! Держи наличку. +2000 ₽", "#2ecc71");
+            }
+        }
+        if (gameState.activeQuest.id === 'gosha') {
+            let lenta = locations.find(l => l.id === 'lenta');
+            if (Math.hypot(car.x - lenta.x, car.y - lenta.y) < 300) {
+                stats.money += 300; gameState.activeQuest = null;
+                showNotif("Гоша: Спасибо, шеф! +300 ₽", "#2ecc71");
+                let g = npcs.find(n => n.id === 'gosha'); g.state = 'idle'; g.x = car.x + 80; g.y = car.y + 80;
             }
         }
     }
@@ -701,10 +842,14 @@
         let rightX = Math.cos(car.angle + Math.PI/2); let rightY = Math.sin(car.angle + Math.PI/2);
         let vForward = car.vx * forwardX + car.vy * forwardY; let vLateral = car.vx * rightX + car.vy * rightY;
 
+        // Снижаем сцепление в дождь
+        let currentGrip = weather.isRaining ? car.grip * 0.5 : car.grip;
+        let currentDrag = weather.isRaining ? car.drag * 0.98 : car.drag;
+
         if (Math.abs(vLateral) > 2 && Math.abs(car.speed) > 3) skidmarks.push({ x: car.x, y: car.y, angle: car.angle, life: 1 });
-        vLateral *= car.grip; vForward *= 0.99; 
+        vLateral *= currentGrip; vForward *= 0.99; 
         car.vx = vForward * forwardX + vLateral * rightX; car.vy = vForward * forwardY + vLateral * rightY;
-        car.vx *= car.drag; car.vy *= car.drag;
+        car.vx *= currentDrag; car.vy *= currentDrag;
 
         let curSpeed = Math.hypot(car.vx, car.vy);
         let maxS = stats.hasNitro && keys['shift'] ? car.maxSpeed * 1.5 : car.maxSpeed;
@@ -828,7 +973,9 @@
     if (text) { hint.innerHTML = text; hint.style.display = 'block'; } else { hint.style.display = 'none'; }
   }
 
-  // --- ОТРИСОВКА (ВОССТАНОВЛЕНА СТАРАЯ ГРАФИКА) ---
+  // ==========================================
+  // ОТРИСОВКА
+  // ==========================================
   function drawHuman(x, y, color, name, walkCycle, isRavil, angle) {
     ctx.save(); ctx.translate(x, y); 
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0, 0, 18, 9, 0, 0, Math.PI*2); ctx.fill();
@@ -902,7 +1049,9 @@
     // Водитель и пассажиры
     if (gameState.inCar) { ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, -15, 8, 0, Math.PI*2); ctx.fill(); }
     let pasha = npcs.find(n => n.id === 'pasha');
+    let gosha = npcs.find(n => n.id === 'gosha');
     if (pasha && pasha.state === 'inCar') { ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, 15, 8, 0, Math.PI*2); ctx.fill(); }
+    if (gosha && gosha.state === 'inCar') { ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, 15, 8, 0, Math.PI*2); ctx.fill(); }
 
     // Лобовое стекло
     ctx.fillStyle = 'rgba(10, 15, 20, 0.85)'; 
@@ -961,12 +1110,14 @@
     ctx.fillStyle = timeData.isNight ? '#1a2a1a' : '#2d5a27'; ctx.fillRect(0, 0, W, H);
     ctx.save(); ctx.translate(-camera.x, -camera.y);
 
+    // Вода
     waterAreas.forEach(w => {
       ctx.fillStyle = '#1a5276'; ctx.fillRect(w.x, w.y, w.w, w.h);
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
       for (let s of w.sparkles) if (s.x > camera.x - 100 && s.x < camera.x + W + 100 && s.y > camera.y - 100 && s.y < camera.y + H + 100) ctx.fillRect(s.x, s.y, s.w, s.h);
     });
 
+    // Дороги
     for (let r of roadSegments) {
         ctx.beginPath(); ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2);
         ctx.lineWidth = r.w; ctx.strokeStyle = '#444'; ctx.lineCap = 'round'; ctx.stroke();
@@ -976,6 +1127,7 @@
         }
     }
 
+    // Дома
     houses.forEach(h => {
       if (h.x > camera.x - 300 && h.x < camera.x + W + 300 && h.y > camera.y - 300 && h.y < camera.y + H + 300) {
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(h.x + 10, h.y + 10, h.w, h.h);
@@ -984,6 +1136,7 @@
       }
     });
 
+    // Деревья
     trees.forEach(t => {
       if (t.x > camera.x - 100 && t.x < camera.x + W + 100 && t.y > camera.y - 100 && t.y < camera.y + H + 100) {
         ctx.fillStyle = '#2c1e16'; ctx.fillRect(t.x - 5, t.y, 10, 20);
@@ -991,6 +1144,20 @@
       }
     });
 
+    // Фонари
+    streetLights.forEach(l => {
+        if (l.x > camera.x - 100 && l.x < camera.x + W + 100 && l.y > camera.y - 100 && l.y < camera.y + H + 100) {
+            ctx.fillStyle = '#555'; ctx.fillRect(l.x - 3, l.y - 40, 6, 40);
+            if (timeData.isNight) {
+                ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(l.x, l.y - 40, 6, 0, Math.PI*2); ctx.fill();
+                const grad = ctx.createRadialGradient(l.x, l.y - 40, 0, l.x, l.y - 40, 150);
+                grad.addColorStop(0, 'rgba(241, 196, 15, 0.4)'); grad.addColorStop(1, 'rgba(241, 196, 15, 0)');
+                ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(l.x, l.y - 40, 150, 0, Math.PI*2); ctx.fill();
+            }
+        }
+    });
+
+    // Локации
     locations.forEach(s => {
       if (s.x > camera.x - 500 && s.x < camera.x + W + 500 && s.y > camera.y - 500 && s.y < camera.y + H + 500) {
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(s.x + 15, s.y + 15, s.w, s.h);
@@ -1005,6 +1172,9 @@
                 ctx.fillStyle = '#2c3e50'; ctx.fillRect(s.x+20, s.y+20, s.w-40, s.h-40);
                 ctx.fillStyle = '#f1c40f'; ctx.font = '40px Arial'; ctx.textAlign = 'center'; ctx.fillText('🚜', s.x+s.w/2, s.y+s.h/2+15);
             }
+            if (s.id === 'memorial') {
+                ctx.fillStyle = '#555'; ctx.fillRect(s.x+s.w/2-30, s.y+20, 60, s.h-20);
+            }
         } else {
             ctx.fillStyle = '#1a1a1a'; ctx.fillRect(s.x + s.w/2 - 25, s.y + s.h - 30, 50, 30);
             if (s.type === 'gas') {
@@ -1018,6 +1188,7 @@
       }
     });
 
+    // NPC
     npcs.forEach(npc => {
         if (npc.state !== 'inCar') drawHuman(npc.x, npc.y, npc.color, npc.name, 0, false, npc.angle);
     });
@@ -1025,6 +1196,7 @@
     if (!gameState.inCar) drawHuman(player.x, player.y, player.color, player.name, player.walkCycle, true, player.angle);
     drawCar(timeData);
 
+    // Следы и частицы
     skidmarks.forEach(mark => {
       ctx.save(); ctx.translate(mark.x, mark.y); ctx.rotate(mark.angle);
       ctx.fillStyle = `rgba(0,0,0,${mark.life * 0.5})`; ctx.fillRect(-15, -30, 10, 20); ctx.fillRect(-15, 10, 10, 20);
@@ -1038,8 +1210,20 @@
 
     ctx.restore();
 
+    // Ночь
     if (timeData.alpha > 0) {
         ctx.fillStyle = `rgba(10, 15, 30, ${timeData.alpha})`; ctx.fillRect(0, 0, W, H);
+    }
+
+    // Дождь
+    if (weather.isRaining) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let drop of rainDrops) {
+            ctx.moveTo(drop.x, drop.y);
+            ctx.lineTo(drop.x - drop.length * 0.2, drop.y + drop.length);
+        }
+        ctx.stroke();
     }
 
     drawMinimap();
