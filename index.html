@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>2D Adventure</title>
+<title>2D Adventure - BMW</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { 
@@ -12,15 +12,15 @@
     height: 100vh; font-family: system-ui, sans-serif; 
   }
   
-  #game-container { position: relative; }
+  #game-container { position: relative; width: 100%; max-width: 800px; }
   canvas { 
     border: 2px solid #333; box-shadow: 0 0 20px rgba(0,0,0,0.8); 
-    display: block; width: 100%; max-width: 800px; height: auto; 
+    display: block; width: 100%; height: auto; background: #222;
   }
   
   /* Мобильные кнопки управления */
   #mobile-controls {
-    display: flex; gap: 10px; margin-top: 15px;
+    display: flex; gap: 10px; margin-top: 15px; justify-content: center; width: 100%;
   }
   .ctrl-btn {
     width: 60px; height: 60px; border-radius: 10px;
@@ -62,7 +62,7 @@
   </div>
 </div>
 
-<!-- Кнопки для телефона/планшета -->
+<!-- Кнопки для телефона -->
 <div id="mobile-controls">
   <button class="ctrl-btn" ontouchstart="keys['ArrowUp']=true" ontouchend="keys['ArrowUp']=false" onmousedown="keys['ArrowUp']=true" onmouseup="keys['ArrowUp']=false" onmouseleave="keys['ArrowUp']=false">↑</button>
   <div style="display:flex; flex-direction:column; gap:10px;">
@@ -79,73 +79,227 @@
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
 
-  let gameState = { isDialogueOpen: false };
+  // Настройки мира (Бесконечная карта)
+  const WORLD_SIZE = 2000;
+  
+  // Камера
+  const camera = { x: 0, y: 0 };
 
-  const player = { x: 400, y: 300, size: 30, speed: 4, color: '#3498db' };
-  const egor = { x: 200, y: 200, size: 30, color: '#e74c3c', name: "Егор" };
+  let gameState = { isDialogueOpen: false, inCar: false };
+
+  // Персонажи
+  const player = { x: 1000, y: 1000, speed: 4, color: '#3498db', name: "Равиль" };
+  const egor = { x: 800, y: 800, color: '#e74c3c', name: "Егор" };
+  
+  // Машина
+  const car = { x: 1000, y: 900, width: 120, height: 60, speed: 6, color: '#000' };
 
   const keys = {};
 
-  // Управление с клавиатуры
+  // Управление
   window.addEventListener('keydown', (e) => {
     keys[e.key] = true;
     if (e.key === ' ' && !gameState.isDialogueOpen) { checkInteraction(); }
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
   });
-
   window.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
   function checkInteraction() {
     if (gameState.isDialogueOpen) return;
-    const dist = Math.hypot(player.x - egor.x, player.y - egor.y);
-    if (dist < 60) openDialogue();
+
+    const distToCar = Math.hypot(player.x - (car.x + car.width/2), player.y - (car.y + car.height/2));
+    const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
+
+    // Если в машине и нажали действие - выходим
+    if (gameState.inCar) {
+      gameState.inCar = false;
+      // Высаживаем игрока рядом с машиной
+      player.x = car.x + car.width + 20;
+      player.y = car.y + car.height/2;
+      return;
+    }
+
+    // Если рядом с машиной - садимся
+    if (distToCar < 80) {
+      gameState.inCar = true;
+      return;
+    }
+
+    // Если рядом с Егором - диалог
+    if (distToEgor < 60) {
+      openDialogue();
+    }
   }
 
   function update() {
     if (gameState.isDialogueOpen) return;
 
-    if (keys['ArrowUp'] || keys['w'] || keys['W']) player.y -= player.speed;
-    if (keys['ArrowDown'] || keys['s'] || keys['S']) player.y += player.speed;
-    if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.x -= player.speed;
-    if (keys['ArrowRight'] || keys['d'] || keys['D']) player.x += player.speed;
+    let dx = 0, dy = 0;
+    if (keys['ArrowUp'] || keys['w'] || keys['W']) dy -= 1;
+    if (keys['ArrowDown'] || keys['s'] || keys['S']) dy += 1;
+    if (keys['ArrowLeft'] || keys['a'] || keys['A']) dx -= 1;
+    if (keys['ArrowRight'] || keys['d'] || keys['D']) dx += 1;
 
-    if (player.x < 0) player.x = 0;
-    if (player.y < 0) player.y = 0;
-    if (player.x > canvas.width - player.size) player.x = canvas.width - player.size;
-    if (player.y > canvas.height - player.size) player.y = canvas.height - player.size;
+    // Нормализация движения по диагонали
+    if (dx !== 0 && dy !== 0) {
+      const length = Math.sqrt(dx * dx + dy * dy);
+      dx /= length;
+      dy /= length;
+    }
+
+    if (gameState.inCar) {
+      // Двигаем машину
+      car.x += dx * car.speed;
+      car.y += dy * car.speed;
+      // Игрок "привязан" к машине
+      player.x = car.x + car.width/2;
+      player.y = car.y + car.height/2;
+
+      // Ограничение мира для машины
+      if (car.x < 0) car.x = 0;
+      if (car.y < 0) car.y = 0;
+      if (car.x > WORLD_SIZE - car.width) car.x = WORLD_SIZE - car.width;
+      if (car.y > WORLD_SIZE - car.height) car.y = WORLD_SIZE - car.height;
+    } else {
+      // Двигаем игрока пешком
+      player.x += dx * player.speed;
+      player.y += dy * player.speed;
+
+      // Ограничение мира для игрока
+      if (player.x < 0) player.x = 0;
+      if (player.y < 0) player.y = 0;
+      if (player.x > WORLD_SIZE) player.x = WORLD_SIZE;
+      if (player.y > WORLD_SIZE) player.y = WORLD_SIZE;
+    }
+
+    // Камера следует за игроком (или машиной)
+    camera.x = player.x - canvas.width / 2;
+    camera.y = player.y - canvas.height / 2;
+
+    // Ограничение камеры краями мира
+    if (camera.x < 0) camera.x = 0;
+    if (camera.y < 0) camera.y = 0;
+    if (camera.x > WORLD_SIZE - canvas.width) camera.x = WORLD_SIZE - canvas.width;
+    if (camera.y > WORLD_SIZE - canvas.height) camera.y = WORLD_SIZE - canvas.height;
+  }
+
+  // Функция для рисования человечка
+  function drawHuman(x, y, color, name, isPlayer = false) {
+    const scale = 1.2; 
+    const headSize = 8 * scale;
+    
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Голова
+    ctx.fillStyle = '#fcd0b3'; // Цвет кожи
+    ctx.beginPath();
+    ctx.arc(0, -15 * scale, headSize, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Тело (футболка)
+    ctx.fillStyle = color;
+    ctx.fillRect(-8 * scale, -5 * scale, 16 * scale, 20 * scale);
+
+    // Ноги
+    ctx.fillStyle = '#333'; // Джинсы
+    ctx.fillRect(-7 * scale, 15 * scale, 5 * scale, 12 * scale);
+    ctx.fillRect(2 * scale, 15 * scale, 5 * scale, 12 * scale);
+
+    // Имя над головой
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, 0, -35 * scale);
+    
+    ctx.restore();
+  }
+
+  // Функция для рисования машины
+  function drawCar(x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+    
+    // Кузов
+    ctx.fillStyle = car.color;
+    ctx.fillRect(0, 0, car.width, car.height);
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, car.width, car.height);
+
+    // Крыша/Стекла
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(20, 10, 40, car.height - 20);
+    ctx.fillRect(70, 10, 30, car.height - 20);
+
+    // Фары
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillRect(car.width - 5, 5, 5, 10);
+    ctx.fillRect(car.width - 5, car.height - 15, 5, 10);
+
+    ctx.restore();
   }
 
   function draw() {
+    // Очистка экрана
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Двор
-    ctx.fillStyle = '#222'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = '#444'; ctx.lineWidth = 2; ctx.setLineDash([20, 20]);
-    ctx.beginPath(); ctx.moveTo(400, 0); ctx.lineTo(400, 600); ctx.stroke(); ctx.setLineDash([]);
+    ctx.save();
+    // Сдвигаем весь мир относительно камеры
+    ctx.translate(-camera.x, -camera.y);
 
-    // Машина
-    ctx.fillStyle = '#000'; ctx.fillRect(350, 250, 100, 50);
-    ctx.fillStyle = '#fff'; ctx.font = "12px Arial"; ctx.fillText("BMW", 385, 280);
-
-    // Егор
-    ctx.fillStyle = egor.color; ctx.fillRect(egor.x, egor.y, egor.size, egor.size);
-    ctx.fillStyle = '#fff'; ctx.fillText(egor.name, egor.x + 5, egor.y - 5);
-
-    // Игрок
-    ctx.fillStyle = player.color; ctx.fillRect(player.x, player.y, player.size, player.size);
-    ctx.fillStyle = '#fff'; ctx.fillText("Равиль", player.x, player.y - 5);
-
-    // Подсказка
-    const dist = Math.hypot(player.x - egor.x, player.y - egor.y);
-    if (dist < 60 && !gameState.isDialogueOpen) {
-      ctx.fillStyle = '#f1c40f'; ctx.font = "bold 14px Arial";
-      ctx.fillText("Нажми ПРОБЕЛ (или Действие)", egor.x - 30, egor.y - 25);
+    // Рисуем плитку (дорогу) чтобы было видно движение
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+    
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < WORLD_SIZE; i += 50) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, WORLD_SIZE); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(WORLD_SIZE, i); ctx.stroke();
     }
+
+    // Рисуем разметку (центральная дорога)
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([30, 30]);
+    ctx.beginPath(); ctx.moveTo(0, 900); ctx.lineTo(WORLD_SIZE, 900); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Рисуем машину
+    drawCar(car.x, car.y);
+
+    // Рисуем Егора
+    drawHuman(egor.x, egor.y, egor.color, egor.name);
+
+    // Рисуем Игрока (если он не в машине)
+    if (!gameState.inCar) {
+      drawHuman(player.x, player.y, player.color, player.name);
+    }
+
+    // Подсказки над объектами
+    ctx.fillStyle = '#f1c40f';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+
+    if (!gameState.isDialogueOpen) {
+      const distToCar = Math.hypot(player.x - (car.x + car.width/2), player.y - (car.y + car.height/2));
+      const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
+
+      if (gameState.inCar) {
+        ctx.fillText("Нажми ПРОБЕЛ чтобы выйти", player.x, player.y - 60);
+      } else {
+        if (distToCar < 80) ctx.fillText("Нажми ПРОБЕЛ чтобы сесть", car.x + car.width/2, car.y - 20);
+        if (distToEgor < 60) ctx.fillText("Нажми ПРОБЕЛ чтобы говорить", egor.x, egor.y - 45);
+      }
+    }
+
+    ctx.restore();
   }
 
   function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 
-  // Диалоги
+  // ====== ДИАЛОГИ ======
   function openDialogue() {
     gameState.isDialogueOpen = true;
     document.getElementById('dialogue').style.display = 'flex';
