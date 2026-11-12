@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Adventure 2D - Mega City Update</title>
+<title>Adventure 2D - Novy Byt</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: system-ui, sans-serif; }
@@ -177,7 +177,6 @@
     }
   }
 
-  // РЕАЛИСТИЧНЫЙ ЗВУК ШАГОВ (Тише и глуше)
   function playFootstep() {
     if (!audioCtx) return;
     const now = audioCtx.currentTime;
@@ -186,8 +185,8 @@
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
     const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
-    const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 400; filter.Q.value = 1.0; // Ниже частота
-    const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08); // Тише
+    const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 400; filter.Q.value = 1.0; 
+    const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08); 
     noise.connect(filter); filter.connect(gain); gain.connect(masterGain); noise.start(now);
   }
 
@@ -240,9 +239,50 @@
 
   const WORLD_SIZE = 10000; 
   const ROAD_WIDTH = 300;
-  // БОЛЕЕ РАЗНООБРАЗНЫЕ ДОРОГИ (Не просто крест)
-  const roadsX = [1500, 3500, 5000, 6500, 8500];
-  const roadsY = [1500, 3500, 5000, 6500, 8500];
+
+  // --- НОВАЯ СИСТЕМА ДОРОГ (ПО КАРТЕ НОВЫЙ БЫТ) ---
+  const roadSegments = [
+    // Главная вертикальная (Молодежная ул.)
+    { x1: 7000, y1: 0, x2: 7000, y2: 10000, w: ROAD_WIDTH },
+    // Главная горизонтальная (Новая ул.)
+    { x1: 0, y1: 5000, x2: 10000, y2: 5000, w: ROAD_WIDTH },
+    // Диагональная (ул. Нати)
+    { x1: 2000, y1: 8000, x2: 8000, y2: 2000, w: ROAD_WIDTH },
+    // Левая вертикаль
+    { x1: 3000, y1: 2000, x2: 3000, y2: 8000, w: 200 },
+    // Верхняя горизонталь (Зеленая ул.)
+    { x1: 2000, y1: 2000, x2: 7000, y2: 2000, w: 200 },
+    // Нижняя извилистая дорога
+    { x1: 3000, y1: 8500, x2: 7000, y2: 8500, w: 200 },
+    { x1: 7000, y1: 8500, x2: 7000, y2: 9500, w: 200 }
+  ];
+
+  function distToSegmentSq(px, py, x1, y1, x2, y2) {
+    let l2 = (x2 - x1)**2 + (y2 - y1)**2;
+    if (l2 === 0) return (px - x1)**2 + (py - y1)**2;
+    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return (px - (x1 + t * (x2 - x1)))**2 + (py - (y1 + t * (y2 - y1)))**2;
+  }
+
+  function isOnRoad(x, y, margin = 0) {
+    for (let r of roadSegments) {
+      if (distToSegmentSq(x, y, r.x1, r.y1, r.x2, r.y2) < (r.w/2 + margin)**2) return true;
+    }
+    return false;
+  }
+
+  // --- ВОДА (Натишинские пруды) ---
+  const waterAreas = [
+    { x: 0, y: 6000, w: 3500, h: 4000 } // Большой пруд
+  ];
+
+  function isInWater(x, y) {
+    for (let w of waterAreas) {
+      if (x > w.x && x < w.x + w.w && y > w.y && y < w.y + w.h) return true;
+    }
+    return false;
+  }
 
   let gameState = { inCar: false, activePanel: null };
   let stats = { money: 2000, mood: 50 };
@@ -255,7 +295,7 @@
     x: 5000, y: 5000, angle: -Math.PI/2, vx: 0, vy: 0, speed: 0, 
     maxSpeed: 22, accel: 0.22, turnSpeed: 0.05, grip: 0.15, drag: 0.97, 
     width: 150, height: 75, color: '#0a0a0a', isEngineOn: false, lastGear: 0, 
-    fuel: 50, maxFuel: 50, consumption: 0.0001 // ОЧЕНЬ МЕДЛЕННЫЙ РАСХОД
+    fuel: 50, maxFuel: 50, consumption: 0.0001 
   };
   
   const camera = { x: 0, y: 0 };
@@ -264,62 +304,59 @@
   const trees = [];
   const bushes = [];
   const lights = [];
-  const houses = []; // НОВЫЕ ДОМА
+  const houses = [];
   
   const shops = [
-    { id: 'coffee', x: 5500, y: 1800, w: 200, h: 150, name: "Кофейня", color: "#8e44ad", type: 'food', items: [{ name: "Кофе", price: 150, mood: 15 }] },
-    { id: 'shawarma', x: 1600, y: 5200, w: 250, h: 200, name: "Шаурмичная", color: "#d35400", type: 'food', items: [{ name: "Шаурма", price: 300, mood: 30 }] },
-    { id: 'gas', x: 7800, y: 2200, w: 250, h: 150, name: "Заправка", color: "#27ae60", type: 'gas' },
-    { id: 'garage', x: 1800, y: 7800, w: 250, h: 200, name: "Автосервис", color: "#7f8c8d", type: 'garage' }
+    { id: 'coffee', x: 3300, y: 4000, w: 200, h: 150, name: "Кофейня", color: "#8e44ad", type: 'food', items: [{ name: "Кофе", price: 150, mood: 15 }] },
+    { id: 'shawarma', x: 5500, y: 4700, w: 250, h: 200, name: "Шаурмичная", color: "#d35400", type: 'food', items: [{ name: "Шаурма", price: 300, mood: 30 }] },
+    { id: 'gas', x: 7800, y: 1800, w: 250, h: 150, name: "Заправка", color: "#27ae60", type: 'gas' },
+    { id: 'garage', x: 6000, y: 7500, w: 250, h: 200, name: "Автосервис", color: "#7f8c8d", type: 'garage' }
   ];
 
-  function isOnRoad(x, y) {
-    for (let rx of roadsX) { if (Math.abs(x - rx) < ROAD_WIDTH/2 + 50) return true; }
-    for (let ry of roadsY) { if (Math.abs(y - ry) < ROAD_WIDTH/2 + 50) return true; }
-    return false;
-  }
-
   function initWorld() {
-    for(let i=0; i<800; i++) {
+    // Деревья (не на дорогах и не в воде)
+    for(let i=0; i<1000; i++) {
       let tx = Math.random() * WORLD_SIZE; let ty = Math.random() * WORLD_SIZE;
-      if (!isOnRoad(tx, ty) && (ty < 6500 || ty > 7500)) trees.push({ x: tx, y: ty, r: 30 + Math.random()*20 });
+      if (!isOnRoad(tx, ty, 30) && !isInWater(tx, ty)) trees.push({ x: tx, y: ty, r: 30 + Math.random()*20 });
     }
-    for(let i=0; i<600; i++) {
+    // Кусты
+    for(let i=0; i<800; i++) {
       let bx = Math.random() * WORLD_SIZE; let by = Math.random() * WORLD_SIZE;
-      if (!isOnRoad(bx, by) && (by < 6500 || by > 7500)) bushes.push({ x: bx, y: by, r: 15 + Math.random()*10 });
+      if (!isOnRoad(bx, by, 20) && !isInWater(bx, by)) bushes.push({ x: bx, y: by, r: 15 + Math.random()*10 });
     }
     
-    // Генерация домов (чтобы город не был пустым)
-    for(let i=0; i<60; i++) {
+    // Генерация домов (строго по кварталам, вне дорог)
+    for(let i=0; i<200; i++) {
         let hx = Math.random() * WORLD_SIZE;
         let hy = Math.random() * WORLD_SIZE;
-        let hw = 150 + Math.random() * 150;
-        let hh = 150 + Math.random() * 150;
+        let hw = 120 + Math.random() * 100;
+        let hh = 120 + Math.random() * 100;
         
-        // Не спавним на дорогах, реке и магазинах
-        if (!isOnRoad(hx, hy) && (hy < 6500 || hy > 7500)) {
+        if (!isOnRoad(hx, hy, 50) && !isOnRoad(hx+hw, hy, 50) && !isOnRoad(hx, hy+hh, 50) && !isOnRoad(hx+hw, hy+hh, 50) && !isInWater(hx, hy)) {
             let overlap = false;
-            for(let s of shops) { if (hx < s.x + s.w + 100 && hx + hw > s.x - 100 && hy < s.y + s.h + 100 && hy + hh > s.y - 100) overlap = true; }
+            for(let s of shops) { if (hx < s.x + s.w + 150 && hx + hw > s.x - 150 && hy < s.y + s.h + 150 && hy + hh > s.y - 150) overlap = true; }
             if(!overlap) {
                 houses.push({ x: hx, y: hy, w: hw, h: hh, color: `hsl(${Math.random()*360}, 20%, 30%)` });
             }
         }
     }
 
-    const lightOffset = ROAD_WIDTH/2 + 50; const step = 400;
-    for (let rx of roadsX) {
-      for (let y = 0; y < WORLD_SIZE; y += step) {
-        let isIntersection = false;
-        for (let ry of roadsY) { if (Math.abs(y - ry) < lightOffset) isIntersection = true; }
-        if (!isIntersection) { lights.push({ x: rx - lightOffset, y: y }); lights.push({ x: rx + lightOffset, y: y }); }
-      }
-    }
-    for (let ry of roadsY) {
-      for (let x = 0; x < WORLD_SIZE; x += step) {
-        let isIntersection = false;
-        for (let rx of roadsX) { if (Math.abs(x - rx) < lightOffset) isIntersection = true; }
-        if (!isIntersection) { lights.push({ x: x, y: ry - lightOffset }); lights.push({ x: x, y: ry + lightOffset }); }
-      }
+    // Фонари вдоль дорог
+    for (let r of roadSegments) {
+        let dist = Math.hypot(r.x2 - r.x1, r.y2 - r.y1);
+        let steps = Math.floor(dist / 300);
+        for(let i=0; i<steps; i++) {
+            let t = i / steps;
+            let lx = r.x1 + (r.x2 - r.x1) * t;
+            let ly = r.y1 + (r.y2 - r.y1) * t;
+            
+            // Сдвигаем фонари на обочину
+            let angle = Math.atan2(r.y2 - r.y1, r.x2 - r.x1);
+            let offset = r.w / 2 + 30;
+            
+            lights.push({ x: lx + Math.cos(angle + Math.PI/2) * offset, y: ly + Math.sin(angle + Math.PI/2) * offset });
+            lights.push({ x: lx - Math.cos(angle + Math.PI/2) * offset, y: ly - Math.sin(angle + Math.PI/2) * offset });
+        }
     }
   }
   initWorld();
@@ -432,19 +469,19 @@
   }
 
   // ==========================================
-  // ФИКС РЕЧКИ И ДОМОВ (ВЫТАЛКИВАНИЕ)
+  // БРОНЕБОЙНЫЕ КОЛЛИЗИИ
   // ==========================================
   
-  function getCarCircles() {
+  function getCarCircles(cx, cy) {
     return [
-      { x: car.x + Math.cos(car.angle) * 45, y: car.y + Math.sin(car.angle) * 45, r: 35 },
-      { x: car.x, y: car.y, r: 38 },
-      { x: car.x - Math.cos(car.angle) * 45, y: car.y - Math.sin(car.angle) * 45, r: 35 }
+      { x: cx + Math.cos(car.angle) * 45, y: cy + Math.sin(car.angle) * 45, r: 35 },
+      { x: cx, y: cy, r: 38 },
+      { x: cx - Math.cos(car.angle) * 45, y: cy - Math.sin(car.angle) * 45, r: 35 }
     ];
   }
 
   function isCircleHittingCar(cx, cy, radius) {
-    for (let c of getCarCircles()) {
+    for (let c of getCarCircles(car.x, car.y)) {
       if (Math.hypot(cx - c.x, cy - c.y) < c.r + radius) return true;
     }
     return false;
@@ -462,11 +499,7 @@
   }
 
   function checkCarEnvironmentCollision(cx, cy) {
-    let tempCircles = [
-      { x: cx + Math.cos(car.angle) * 45, y: cy + Math.sin(car.angle) * 45, r: 35 },
-      { x: cx, y: cy, r: 38 },
-      { x: cx - Math.cos(car.angle) * 45, y: cy - Math.sin(car.angle) * 45, r: 35 }
-    ];
+    let tempCircles = getCarCircles(cx, cy);
 
     // Столкновение со зданиями и домами
     for (let s of [...shops, ...houses]) {
@@ -477,16 +510,9 @@
       }
     }
 
-    // Столкновение с рекой (река на y=6800, ширина 400)
-    let riverTop = 6800;
-    let riverBottom = 7200;
-    
+    // Столкновение с водой
     for (let c of tempCircles) {
-        if (c.y + c.r > riverTop && c.y - c.r < riverBottom) {
-            let onBridge = false;
-            for (let rx of roadsX) { if (Math.abs(c.x - rx) < 150) onBridge = true; }
-            if (!onBridge) return true;
-        }
+        if (isInWater(c.x, c.y)) return true;
     }
 
     return false;
@@ -517,9 +543,11 @@
         egor.state = 'inCar'; mission.active = true;
         let safeDist = false;
         while(!safeDist) {
-          if (Math.random() > 0.5) { mission.destX = roadsX[Math.floor(Math.random() * roadsX.length)]; mission.destY = Math.random() * WORLD_SIZE; }
-          else { mission.destX = Math.random() * WORLD_SIZE; mission.destY = roadsY[Math.floor(Math.random() * roadsY.length)]; }
-          if (Math.hypot(mission.destX - car.x, mission.destY - car.y) > 4000) safeDist = true;
+          mission.destX = Math.random() * WORLD_SIZE;
+          mission.destY = Math.random() * WORLD_SIZE;
+          if (!isInWater(mission.destX, mission.destY) && !isOnRoad(mission.destX, mission.destY)) {
+              if (Math.hypot(mission.destX - car.x, mission.destY - car.y) > 3000) safeDist = true;
+          }
         }
       }
     } else { egor.walkCycle = 0; }
@@ -534,7 +562,6 @@
 
     if (gameState.inCar) {
       if (car.isEngineOn) {
-        // ОЧЕНЬ МЕДЛЕННЫЙ РАСХОД ТОПЛИВА
         car.fuel -= car.consumption + (Math.abs(car.speed) * 0.00005);
         if (car.fuel <= 0) {
           car.fuel = 0; car.isEngineOn = false; car.speed = 0; car.vx = 0; car.vy = 0;
@@ -571,7 +598,6 @@
         if (gear > car.lastGear && car.speed > 0) playExhaustPop();
         car.lastGear = gear;
 
-        // СКОЛЬЖЕНИЕ И ОТТАЛКИВАНИЕ ОТ РЕКИ
         let oldX = car.x; car.x += car.vx;
         if (checkCarEnvironmentCollision(car.x, car.y)) {
             car.x = oldX; car.vx *= -0.2; 
@@ -580,18 +606,6 @@
         let oldY = car.y; car.y += car.vy;
         if (checkCarEnvironmentCollision(car.x, car.y)) {
             car.y = oldY; car.vy *= -0.2; 
-            
-            // Если мы врезались в реку, мягко отталкиваем
-            if (car.y > 6600 && car.y < 7400) {
-                let onBridge = false;
-                for (let rx of roadsX) { if (Math.abs(car.x - rx) < 150) onBridge = true; }
-                if (!onBridge) {
-                    // Выталкиваем
-                    if (car.y < 7000) car.y = 6600 - car.height/2;
-                    else car.y = 7400 + car.height/2;
-                    car.vy = 0; // Гасим скорость в направлении реки
-                }
-            }
         }
 
         updateEngineSound(currentSpeed);
@@ -636,11 +650,7 @@
         let closestX = Math.max(s.x, Math.min(player.x, s.x + s.w)); let closestY = Math.max(s.y, Math.min(player.y, s.y + s.h));
         if ((player.x - closestX)**2 + (player.y - closestY)**2 < player.radius**2) hitX = true;
       }
-      if (player.y + player.radius > 6800 && player.y - player.radius < 7200) {
-          let onBridge = false;
-          for (let rx of roadsX) { if (Math.abs(player.x - rx) < 150) onBridge = true; }
-          if (!onBridge) hitX = true;
-      }
+      if (isInWater(player.x, player.y)) hitX = true;
       if (isCircleHittingCar(player.x, player.y, player.radius)) hitX = true;
       if (isHittingEgor(player.x, player.y, player.radius)) hitX = true;
       if (hitX) player.x -= Math.cos(player.angle) * player.speed;
@@ -650,11 +660,7 @@
         let closestX = Math.max(s.x, Math.min(player.x, s.x + s.w)); let closestY = Math.max(s.y, Math.min(player.y, s.y + s.h));
         if ((player.x - closestX)**2 + (player.y - closestY)**2 < player.radius**2) hitY = true;
       }
-      if (player.y + player.radius > 6800 && player.y - player.radius < 7200) {
-          let onBridge = false;
-          for (let rx of roadsX) { if (Math.abs(player.x - rx) < 150) onBridge = true; }
-          if (!onBridge) hitY = true;
-      }
+      if (isInWater(player.x, player.y)) hitY = true;
       if (isCircleHittingCar(player.x, player.y, player.radius)) hitY = true;
       if (isHittingEgor(player.x, player.y, player.radius)) hitY = true;
       if (hitY) player.y -= Math.sin(player.angle) * player.speed;
@@ -799,13 +805,20 @@
     ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 2; ctx.strokeRect(0, 0, mapSize, mapSize);
     const scale = mapSize / WORLD_SIZE;
     
-    // Река
+    // Вода
     ctx.fillStyle = '#2980b9';
-    ctx.fillRect(0, 6800 * scale, mapSize, 400 * scale);
+    waterAreas.forEach(w => ctx.fillRect(w.x * scale, w.y * scale, w.w * scale, w.h * scale));
 
+    // Дороги
     ctx.fillStyle = '#333';
-    for (let rx of roadsX) ctx.fillRect((rx - ROAD_WIDTH/2) * scale, 0, ROAD_WIDTH * scale, mapSize);
-    for (let ry of roadsY) ctx.fillRect(0, (ry - ROAD_WIDTH/2) * scale, mapSize, ROAD_WIDTH * scale);
+    for (let r of roadSegments) {
+        ctx.beginPath();
+        ctx.moveTo(r.x1 * scale, r.y1 * scale);
+        ctx.lineTo(r.x2 * scale, r.y2 * scale);
+        ctx.lineWidth = Math.max(2, r.w * scale);
+        ctx.strokeStyle = '#333';
+        ctx.stroke();
+    }
     
     shops.forEach(s => { ctx.fillStyle = s.color; ctx.fillRect(s.x * scale - 3, s.y * scale - 3, Math.max(6, s.w * scale), Math.max(6, s.h * scale)); });
     
@@ -819,83 +832,40 @@
     ctx.fillStyle = '#2d5a27'; ctx.fillRect(0, 0, W, H);
     ctx.save(); ctx.translate(-camera.x, -camera.y);
 
-    // Река
+    // Вода
     ctx.fillStyle = '#1a5276'; 
-    ctx.fillRect(0, 6800, WORLD_SIZE, 400);
+    waterAreas.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
     ctx.fillStyle = 'rgba(255,255,255,0.1)';
     for(let i=0; i<200; i++) {
-        ctx.fillRect(Math.random() * WORLD_SIZE, 6800 + Math.random() * 400, 50, 5);
+        ctx.fillRect(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE, 50, 5);
     }
 
-    // Дороги
-    ctx.fillStyle = '#333';
-    for (let rx of roadsX) ctx.fillRect(rx - ROAD_WIDTH/2, 0, ROAD_WIDTH, WORLD_SIZE);
-    for (let ry of roadsY) ctx.fillRect(0, ry - ROAD_WIDTH/2, WORLD_SIZE, ROAD_WIDTH);
+    // Дороги (сложная сетка)
+    for (let r of roadSegments) {
+        ctx.beginPath();
+        ctx.moveTo(r.x1, r.y1);
+        ctx.lineTo(r.x2, r.y2);
+        ctx.lineWidth = r.w;
+        ctx.strokeStyle = '#333';
+        ctx.lineCap = 'round';
+        ctx.stroke();
 
-    // Круговая развязка (Центр)
-    let centerR = 400;
-    ctx.fillStyle = '#2d5a27'; 
-    ctx.beginPath(); ctx.arc(5000, 5000, centerR - ROAD_WIDTH/2, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#333'; 
-    ctx.beginPath(); ctx.arc(5000, 5000, centerR + ROAD_WIDTH/2, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#2d5a27'; 
-    ctx.beginPath(); ctx.arc(5000, 5000, centerR - ROAD_WIDTH/2, 0, Math.PI*2); ctx.fill();
-
-    // Разметка
-    ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4; ctx.setLineDash([40, 40]);
-    for (let rx of roadsX) { 
-        if(rx === 5000) {
-            ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx, 5000 - centerR - 50); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(rx, 5000 + centerR + 50); ctx.lineTo(rx, WORLD_SIZE); ctx.stroke();
-        } else {
-            ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx, WORLD_SIZE); ctx.stroke(); 
-        }
+        // Разметка
+        ctx.beginPath();
+        ctx.moveTo(r.x1, r.y1);
+        ctx.lineTo(r.x2, r.y2);
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#f1c40f';
+        ctx.setLineDash([40, 40]);
+        ctx.stroke();
+        ctx.setLineDash([]);
     }
-    for (let ry of roadsY) { 
-        if(ry === 5000) {
-            ctx.beginPath(); ctx.moveTo(0, ry); ctx.lineTo(5000 - centerR - 50, ry); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(5000 + centerR + 50, ry); ctx.lineTo(WORLD_SIZE, ry); ctx.stroke();
-        } else {
-            ctx.beginPath(); ctx.moveTo(0, ry); ctx.lineTo(WORLD_SIZE, ry); ctx.stroke(); 
-        }
-    }
-    ctx.setLineDash([]);
-    ctx.beginPath(); ctx.arc(5000, 5000, centerR, 0, Math.PI*2); ctx.strokeStyle = '#f1c40f'; ctx.setLineDash([20, 20]); ctx.stroke(); ctx.setLineDash([]);
-
-    // Мосты
-    for (let rx of roadsX) {
-        ctx.fillStyle = '#555';
-        ctx.fillRect(rx - ROAD_WIDTH/2, 6800 - 10, ROAD_WIDTH, 420);
-        ctx.strokeStyle = '#222'; ctx.lineWidth = 4;
-        ctx.strokeRect(rx - ROAD_WIDTH/2, 6800 - 10, ROAD_WIDTH, 420);
-        ctx.fillStyle = '#333';
-        for(let j=6800; j<7200; j+=50) {
-            ctx.fillRect(rx - ROAD_WIDTH/2 - 10, j, 10, 10);
-            ctx.fillRect(rx + ROAD_WIDTH/2, j, 10, 10);
-        }
-    }
-
-    // Асфальтовые подъезды (Исправлены, теперь ровные)
-    shops.forEach(s => {
-      if (s.x > camera.x - 300 && s.x < camera.x + W + 300 && s.y > camera.y - 300 && s.y < camera.y + H + 300) {
-        ctx.fillStyle = '#2a2a2a'; 
-        // Рисуем площадку строго под зданием и чуть впереди
-        ctx.fillRect(s.x - 20, s.y + s.h, s.w + 40, 100); 
-        
-        // Парковочные линии
-        ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
-        for(let i = 0; i < s.w + 40; i+=40) { 
-            ctx.beginPath(); ctx.moveTo(s.x - 20 + i, s.y + s.h); ctx.lineTo(s.x - 20 + i, s.y + s.h + 40); ctx.stroke(); 
-        }
-      }
-    });
 
     // Дома
     houses.forEach(h => {
       if (h.x > camera.x - 300 && h.x < camera.x + W + 300 && h.y > camera.y - 300 && h.y < camera.y + H + 300) {
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(h.x + 10, h.y + 10, h.w, h.h);
         ctx.fillStyle = h.color; ctx.fillRect(h.x, h.y, h.w, h.h);
-        // Крыша
         ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(h.x, h.y, h.w, 30);
         // Окна
         ctx.fillStyle = '#111';
