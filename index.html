@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Adventure 2D - Novy Byt Ultimate</title>
+<title>Adventure 2D - Novy Byt MEGA EDITION</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: system-ui, sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
   canvas { display: block; width: 100vw; height: 100vh; background: #2d5a27; }
   #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
+  /* HUD */
   #hud { position: absolute; top: 20px; left: 20px; color: #fff; font-weight: bold; font-size: 18px; text-shadow: 0 2px 4px #000; pointer-events: none; }
   #hud div { margin-bottom: 5px; }
   .stat-value { color: #f1c40f; }
@@ -18,6 +19,8 @@
   .inv-item { color: #3498db; margin-left: 10px; }
 
   #hud-quest { color: #2ecc71; margin-top: 10px; display: none; text-shadow: 0 0 5px #000; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 5px; border-left: 4px solid #2ecc71; font-size: 15px; }
+
+  #wanted-stars { color: #e74c3c; font-size: 24px; margin-top: 10px; display: none; text-shadow: 0 0 10px #e74c3c; }
 
   #stamina-label { font-size: 12px; color: #aaa; margin-top: 8px; margin-bottom: 2px; }
   #stamina-container { width: 150px; height: 10px; background: rgba(0,0,0,0.5); border: 1px solid #555; border-radius: 5px; overflow: hidden; }
@@ -34,30 +37,49 @@
 
   #clock { position: absolute; bottom: 30px; right: 30px; color: #fff; font-weight: bold; font-size: 28px; text-shadow: 0 2px 10px #000; pointer-events: none; letter-spacing: 2px; }
 
+  /* Уведомления */
   #notification { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 15px 30px; border-radius: 10px; font-size: 18px; font-weight: bold; border: 2px solid #f1c40f; display: none; z-index: 300; text-align: center; box-shadow: 0 0 20px rgba(0,0,0,0.8); transition: opacity 0.3s, transform 0.3s; pointer-events: none; }
 
+  /* Кнопки */
   #respawn-btn { position: absolute; top: 20px; right: 80px; pointer-events: auto; width: 50px; height: 50px; border-radius: 50%; background: rgba(30, 30, 30, 0.8); color: #fff; border: 2px solid #e74c3c; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: 0.2s; }
   #respawn-btn:hover { background: rgba(231, 76, 60, 0.8); }
 
   #settings-btn { position: absolute; top: 20px; right: 20px; pointer-events: auto; width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: 0.2s; }
   #settings-btn:hover { background: #fff; color: #000; }
 
+  /* Настройки */
   #settings-panel { position: absolute; top: 80px; right: 20px; pointer-events: auto; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 10px; z-index: 200; width: 340px; }
   #settings-panel h3 { color: #f1c40f; margin-bottom: 10px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
   .control-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; align-items: center; }
   .key { background: #333; padding: 2px 8px; border-radius: 4px; border: 1px solid #555; font-weight: bold; color: #f1c40f; }
   input[type=range] { width: 120px; cursor: pointer; }
+  .save-btn { background: #27ae60; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
+  .load-btn { background: #2980b9; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px; }
 
+  /* Подсказка */
   #interaction-hint { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #f1c40f; padding: 10px 20px; border-radius: 20px; font-weight: bold; border: 1px solid #f1c40f; display: none; pointer-events: auto; text-shadow: 0 1px 2px #000; text-align: center; }
 
-  .panel { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 15px; pointer-events: auto; z-index: 100; max-height: 70vh; overflow-y: auto; }
+  /* Панели (Диалоги, Магазины) */
+  .panel { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 650px; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 15px; pointer-events: auto; z-index: 100; max-height: 70vh; overflow-y: auto; }
   .panel-title { font-size: 22px; color: #f1c40f; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; text-align: center; position: sticky; top: 0; background: rgba(15, 15, 20, 0.95); z-index: 10;}
-  .panel-text { font-size: 16px; line-height: 1.5; }
+  .panel-text { font-size: 16px; line-height: 1.5; min-height: 50px; }
   .panel-buttons { display: flex; flex-direction: column; gap: 10px; }
   .btn { background: #333; color: #fff; border: 1px solid #555; padding: 12px; border-radius: 5px; cursor: pointer; text-align: left; transition: 0.2s; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
   .btn:hover { background: #444; border-color: #fff; }
   .btn-price { color: #2ecc71; font-weight: bold; }
   .btn-disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Портрет в диалоге */
+  .dialogue-content { display: flex; gap: 15px; align-items: flex-start; }
+  #dialogue-portrait { width: 80px; height: 80px; background: #222; border: 2px solid #555; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 40px; }
+
+  /* Мобильное управление */
+  #mobile-controls { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+  #joystick-zone { position: absolute; bottom: 30px; left: 30px; width: 120px; height: 120px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; pointer-events: auto; }
+  #joystick-knob { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: rgba(255,255,255,0.5); border-radius: 50%; }
+  .mobile-btn { position: absolute; width: 60px; height: 60px; border-radius: 50%; background: rgba(0,0,0,0.5); border: 2px solid #fff; color: #fff; font-weight: bold; font-size: 16px; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+  #btn-e { bottom: 120px; right: 40px; }
+  #btn-f { bottom: 40px; right: 40px; }
 </style>
 </head>
 <body>
@@ -72,6 +94,8 @@
     <div>Деньги: <span class="stat-value" id="hud-money">2000</span> ₽</div>
     <div>Настроение: <span class="stat-value" id="hud-mood">50</span>%</div>
     
+    <div id="wanted-stars">Розыск: ★</div>
+
     <div id="stamina-label">Выносливость:</div>
     <div id="stamina-container"><div id="stamina-bar"></div></div>
     
@@ -98,29 +122,34 @@
 
   <div id="clock">06:00</div>
 
-  <button id="respawn-btn" onclick="respawnCar(true)" title="Эвакуация (100 ₽)">🔄</button>
+  <button id="respawn-btn" onclick="respawnCar(true)" title="Эвакуация">🔄</button>
   <button id="settings-btn" onclick="toggleSettings()">⚙️</button>
 
   <div id="settings-panel">
-    <h3>Управление</h3>
+    <h3>Управление и Настройки</h3>
     <div class="control-row"><span>Движение:</span> <span><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span></span></div>
     <div class="control-row"><span>Бег / Нитро:</span> <span><span class="key">Shift</span></span></div>
     <div class="control-row"><span>Фары:</span> <span><span class="key">L</span></span></div>
     <div class="control-row"><span>Двигатель:</span> <span><span class="key">Q</span></span></div>
     <div class="control-row"><span>Действие:</span> <span><span class="key">E</span></span></div>
     <div class="control-row"><span>Выйти из авто:</span> <span><span class="key">F</span></span></div>
-    <div class="control-row"><span>Музыка:</span> <span><span class="key">M</span></span></div>
     
     <div class="control-row" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
-      <span>Громкость:</span> <input type="range" id="vol-music" min="0" max="1" step="0.05" value="0.3">
+      <span>Музыка:</span> <input type="range" id="vol-music" min="0" max="1" step="0.05" value="0.3">
     </div>
+    
+    <button class="save-btn" onclick="saveGame()">💾 Сохранить игру</button>
+    <button class="load-btn" onclick="loadGame()">📂 Загрузить игру</button>
   </div>
 
   <div id="interaction-hint">Нажмите [E]</div>
 
   <div class="panel" id="dialogue-panel">
     <div class="panel-title" id="dialogue-title">Диалог</div>
-    <div class="panel-text" id="dialogue-text"></div>
+    <div class="dialogue-content">
+      <div id="dialogue-portrait">👤</div>
+      <div class="panel-text" id="dialogue-text"></div>
+    </div>
     <div class="panel-buttons" id="dialogue-choices"></div>
   </div>
 
@@ -129,10 +158,19 @@
     <div class="panel-buttons" id="shop-items"></div>
     <button class="btn" style="margin-top: 10px; justify-content: center; border-color: #e74c3c;" onclick="closeShop()">Закрыть</button>
   </div>
+
+  <!-- Мобильное управление -->
+  <div id="mobile-controls">
+    <div id="joystick-zone"><div id="joystick-knob"></div></div>
+    <div class="mobile-btn" id="btn-e" ontouchstart="interact()">E</div>
+    <div class="mobile-btn" id="btn-f" ontouchstart="exitCar()">F</div>
+  </div>
 </div>
 
 <script>
-  // Полифилл для roundRect на старых браузерах
+  // ============================================================================
+  // ПОЛИФИЛЛЫ
+  // ============================================================================
   if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
     CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
       let tl, tr, br, bl;
@@ -145,17 +183,31 @@
     };
   }
 
+  // ============================================================================
+  // ИНИЦИАЛИЗАЦИЯ CANVAS И БАЗОВЫЕ НАСТРОЙКИ
+  // ============================================================================
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const bgMusic = document.getElementById('bg-music');
   bgMusic.volume = 0.3;
+  
   let W, H;
-  function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
-  window.addEventListener('resize', resize); resize();
+  function resize() { 
+    W = canvas.width = window.innerWidth; 
+    H = canvas.height = window.innerHeight; 
+  }
+  window.addEventListener('resize', resize); 
+  resize();
 
-  // ==========================================
-  // ВРЕМЯ И ПОГОДА
-  // ==========================================
+  // Проверка на мобильное устройство
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
+  if (isMobile) {
+    document.getElementById('mobile-controls').style.display = 'block';
+  }
+
+  // ============================================================================
+  // ВРЕМЯ, ПОГОДА И ОКРУЖАЮЩАЯ СРЕДА
+  // ============================================================================
   const DAY_DURATION = 10 * 60 * 1000;
   const NIGHT_DURATION = 5 * 60 * 1000;
   const TOTAL_CYCLE = DAY_DURATION + NIGHT_DURATION;
@@ -163,6 +215,12 @@
 
   let weather = { isRaining: false, rainIntensity: 0 };
   let rainDrops = [];
+  let clouds = [];
+
+  // Инициализация облаков
+  for (let i = 0; i < 20; i++) {
+    clouds.push({ x: Math.random() * 20000, y: Math.random() * 20000, scale: 0.5 + Math.random(), speed: 0.2 + Math.random() * 0.5 });
+  }
 
   function updateWeather() {
     if (!weather.isRaining && Math.random() < 0.0005) {
@@ -175,12 +233,12 @@
     
     if (weather.isRaining) {
       weather.rainIntensity = Math.min(1, weather.rainIntensity + 0.01);
-      if (rainDrops.length < 200 && Math.random() < 0.5) {
+      if (rainDrops.length < 300 && Math.random() < 0.5) {
         rainDrops.push({ x: Math.random() * W, y: Math.random() * -H, speed: 15 + Math.random() * 10, length: 10 + Math.random() * 20 });
       }
       for (let i = rainDrops.length - 1; i >= 0; i--) {
         rainDrops[i].y += rainDrops[i].speed;
-        rainDrops[i].x -= rainDrops[i].speed * 0.2; // Ветер
+        rainDrops[i].x -= rainDrops[i].speed * 0.2;
         if (rainDrops[i].y > H) {
           rainDrops[i].y = -rainDrops[i].length;
           rainDrops[i].x = Math.random() * W;
@@ -190,12 +248,20 @@
       weather.rainIntensity = Math.max(0, weather.rainIntensity - 0.01);
       rainDrops = [];
     }
+
+    // Движение облаков
+    for (let c of clouds) {
+      c.x += c.speed;
+      if (c.x > 22000) c.x = -2000;
+    }
   }
 
   function getTimeData() {
     let elapsed = Date.now() - gameStartTime;
     let cycleTime = elapsed % TOTAL_CYCLE;
-    let isNight = false; let alpha = 0; let gameHour = 0;
+    let isNight = false; 
+    let alpha = 0; 
+    let gameHour = 0;
 
     if (cycleTime < DAY_DURATION) {
       let progress = cycleTime / DAY_DURATION;
@@ -216,9 +282,9 @@
     return { isNight, alpha, timeString: `${h}:${m}` };
   }
 
-  // ==========================================
-  // АУДИО
-  // ==========================================
+  // ============================================================================
+  // АУДИО СИСТЕМА
+  // ============================================================================
   let audioCtx, masterGain, engineOsc1, engineOsc2, engineGain, engineFilter;
   let ambientOsc, ambientGain;
 
@@ -229,16 +295,36 @@
       masterGain.gain.value = 0.5;
       masterGain.connect(audioCtx.destination);
 
-      engineOsc1 = audioCtx.createOscillator(); engineOsc2 = audioCtx.createOscillator();
-      engineGain = audioCtx.createGain(); engineFilter = audioCtx.createBiquadFilter();
-      engineOsc1.type = 'sawtooth'; engineOsc2.type = 'square'; engineOsc2.detune.value = 15;
-      engineFilter.type = 'lowpass'; engineFilter.frequency.value = 400;
-      engineOsc1.connect(engineFilter); engineOsc2.connect(engineFilter); engineFilter.connect(engineGain); engineGain.connect(masterGain);
-      engineOsc1.start(); engineOsc2.start(); engineGain.gain.value = 0;
+      // Звук двигателя
+      engineOsc1 = audioCtx.createOscillator(); 
+      engineOsc2 = audioCtx.createOscillator();
+      engineGain = audioCtx.createGain(); 
+      engineFilter = audioCtx.createBiquadFilter();
+      
+      engineOsc1.type = 'sawtooth'; 
+      engineOsc2.type = 'square'; 
+      engineOsc2.detune.value = 15;
+      engineFilter.type = 'lowpass'; 
+      engineFilter.frequency.value = 400;
+      
+      engineOsc1.connect(engineFilter); 
+      engineOsc2.connect(engineFilter); 
+      engineFilter.connect(engineGain); 
+      engineGain.connect(masterGain);
+      
+      engineOsc1.start(); 
+      engineOsc2.start(); 
+      engineGain.gain.value = 0;
 
-      ambientOsc = audioCtx.createOscillator(); ambientGain = audioCtx.createGain();
-      ambientOsc.type = 'triangle'; ambientOsc.frequency.value = 150; ambientGain.gain.value = 0.015;
-      ambientOsc.connect(ambientGain); ambientGain.connect(masterGain); ambientOsc.start();
+      // Фоновый звук города
+      ambientOsc = audioCtx.createOscillator(); 
+      ambientGain = audioCtx.createGain();
+      ambientOsc.type = 'triangle'; 
+      ambientOsc.frequency.value = 150; 
+      ambientGain.gain.value = 0.015;
+      ambientOsc.connect(ambientGain); 
+      ambientGain.connect(masterGain); 
+      ambientOsc.start();
     }
   }
 
@@ -249,17 +335,23 @@
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    
     const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
     const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 400; filter.Q.value = 1.0;
     const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    
     noise.connect(filter); filter.connect(gain); gain.connect(masterGain); noise.start(now);
   }
 
   function startEngineSound() {
-    initAudio(); if (audioCtx.state === 'suspended') audioCtx.resume();
+    initAudio(); 
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     engineGain.gain.setTargetAtTime(0.15, audioCtx.currentTime, 0.2);
   }
-  function stopEngineSound() { if (engineGain) engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1); }
+  
+  function stopEngineSound() { 
+    if (engineGain) engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1); 
+  }
 
   function updateEngineSound(speed) {
     if (!audioCtx || !engineOsc1) return;
@@ -270,11 +362,13 @@
     engineFilter.frequency.setTargetAtTime(300 + (Math.abs(speed) * 30), audioCtx.currentTime, 0.1);
   }
 
-  document.getElementById('vol-music').addEventListener('input', (e) => { bgMusic.volume = parseFloat(e.target.value); });
+  document.getElementById('vol-music').addEventListener('input', (e) => { 
+    bgMusic.volume = parseFloat(e.target.value); 
+  });
 
-  // ==========================================
-  // ЧАСТИЦЫ И ЭФФЕКТЫ
-  // ==========================================
+  // ============================================================================
+  // ЧАСТИЦЫ И СЛЕДЫ
+  // ============================================================================
   let particles = [];
   let skidmarks = [];
 
@@ -299,7 +393,17 @@
     osc.start(now); osc.stop(now + 0.2); noise.start(now); noise.stop(now + 0.1);
     
     const rearX = car.x - Math.cos(car.angle) * (car.width/2); const rearY = car.y - Math.sin(car.angle) * (car.height/2);
-    for(let i=0; i<15; i++) { particles.push({ x: rearX + (Math.random() - 0.5) * 20, y: rearY + (Math.random() - 0.5) * 20, vx: -Math.cos(car.angle) * 8 + (Math.random() - 0.5) * 6, vy: -Math.sin(car.angle) * 8 + (Math.random() - 0.5) * 6, life: 1.0, size: 10 + Math.random() * 15, color: Math.random() > 0.5 ? '#ff5500' : '#ffaa00' }); }
+    for(let i=0; i<15; i++) { 
+      particles.push({ 
+        x: rearX + (Math.random() - 0.5) * 20, 
+        y: rearY + (Math.random() - 0.5) * 20, 
+        vx: -Math.cos(car.angle) * 8 + (Math.random() - 0.5) * 6, 
+        vy: -Math.sin(car.angle) * 8 + (Math.random() - 0.5) * 6, 
+        life: 1.0, 
+        size: 10 + Math.random() * 15, 
+        color: Math.random() > 0.5 ? '#ff5500' : '#ffaa00' 
+      }); 
+    }
   }
 
   function spawnSmoke() {
@@ -315,19 +419,17 @@
     }
   }
 
-  // ==========================================
-  // КАРТА И МИР (РАСШИРЕННАЯ)
-  // ==========================================
+  // ============================================================================
+  // КАРТА И МИР
+  // ============================================================================
   const WORLD_SIZE = 16000;
   const ROAD_WIDTH = 300;
   const SMALL_ROAD_WIDTH = 150;
 
   const roadSegments = [
-    // Главные
     { x1: 8000, y1: 0, x2: 8000, y2: 16000, w: ROAD_WIDTH },
     { x1: 0, y1: 6000, x2: 16000, y2: 6000, w: ROAD_WIDTH },
     { x1: 0, y1: 10000, x2: 16000, y2: 10000, w: ROAD_WIDTH },
-    // Второстепенные
     { x1: 4000, y1: 3000, x2: 4000, y2: 13000, w: SMALL_ROAD_WIDTH },
     { x1: 12000, y1: 3000, x2: 12000, y2: 13000, w: SMALL_ROAD_WIDTH },
     { x1: 1000, y1: 2000, x2: 8000, y2: 2000, w: SMALL_ROAD_WIDTH },
@@ -342,7 +444,14 @@
   const waterAreas = [{ x: 0, y: 7500, w: 3500, h: 4000 }];
   waterAreas.forEach(w => {
     w.sparkles = [];
-    for (let i = 0; i < 150; i++) w.sparkles.push({ x: w.x + Math.random()*w.w, y: w.y + Math.random()*w.h, w: 80+Math.random()*100, h: 6+Math.random()*8 });
+    for (let i = 0; i < 150; i++) {
+      w.sparkles.push({ 
+        x: w.x + Math.random()*w.w, 
+        y: w.y + Math.random()*w.h, 
+        w: 80+Math.random()*100, 
+        h: 6+Math.random()*8 
+      });
+    }
   });
 
   function distToSegmentSq(px, py, x1, y1, x2, y2) {
@@ -352,10 +461,12 @@
     t = Math.max(0, Math.min(1, t));
     return (px - (x1 + t * (x2 - x1)))**2 + (py - (y1 + t * (y2 - y1)))**2;
   }
+  
   function isOnRoad(x, y, margin = 0) {
     for (let r of roadSegments) if (distToSegmentSq(x, y, r.x1, r.y1, r.x2, r.y2) < (r.w/2 + margin)**2) return true;
     return false;
   }
+  
   function isInWater(x, y) {
     for (let w of waterAreas) if (x > w.x && x < w.x+w.w && y > w.y && y < w.y+w.h) {
         if (distToSegmentSq(x, y, 0, 7500, 4000, 7500) < (SMALL_ROAD_WIDTH/2 + 20)**2) return false;
@@ -365,19 +476,23 @@
     return false;
   }
 
-  // ==========================================
-  // ИГРОВЫЕ ДАННЫЕ
-  // ==========================================
-  let gameState = { inCar: false, activePanel: null, activeQuest: null };
+  // ============================================================================
+  // ИГРОВЫЕ ДАННЫЕ И СУЩНОСТИ
+  // ============================================================================
+  let gameState = { inCar: false, activePanel: null, activeQuest: null, wanted: 0 };
   let stats = { money: 2000, mood: 50, hasNitro: false, inventory: [] };
   
-  const player = { x: 7800, y: 6200, angle: -Math.PI/2, speed: 0, walkSpeed: 1.0, sprintSpeed: 2.0, accel: 0.08, friction: 0.85, turnSpeed: 0.15, color: '#3498db', name: "Равиль", walkCycle: 0, stamina: 100, maxStamina: 100, isSprinting: false, radius: 18, lastStepTrigger: 0 };
+  const player = { 
+    x: 7800, y: 6200, angle: -Math.PI/2, speed: 0, walkSpeed: 1.0, sprintSpeed: 2.0, 
+    accel: 0.08, friction: 0.85, turnSpeed: 0.15, color: '#3498db', name: "Равиль", 
+    walkCycle: 0, stamina: 100, maxStamina: 100, isSprinting: false, radius: 18, lastStepTrigger: 0 
+  };
   
   const car = { 
     x: 8200, y: 6200, angle: -Math.PI/2, vx: 0, vy: 0, speed: 0, 
     maxSpeed: 22, accel: 0.22, turnSpeed: 0.05, grip: 0.15, drag: 0.97, 
     width: 150, height: 75, color: '#0a0a0a', isEngineOn: false, headlights: false, lastGear: 0, 
-    fuel: 50, maxFuel: 50, consumption: 0.0001, health: 100, maxHealth: 100
+    fuel: 50, maxFuel: 50, consumption: 0.0001, health: 100, maxHealth: 100 
   };
   
   const camera = { x: 0, y: 0 };
@@ -385,6 +500,8 @@
   const trees = [];
   const houses = [];
   const streetLights = [];
+  const trafficCars = [];
+  const policeCars = [];
 
   const locations = [
     { id: 'pyaterochka', x: 7200, y: 5500, w: 200, h: 150, name: "Пятерочка", color: "#e74c3c", type: 'shop' },
@@ -419,11 +536,14 @@
             if (isOnRoad(x, y, 100) || isInWater(x, y)) continue;
             
             let overlap = false;
-            for(let s of locations) { if (x < s.x + s.w + 100 && x + 150 > s.x - 100 && y < s.y + s.h + 100 && y + 150 > s.y - 100) overlap = true; }
+            for(let s of locations) { 
+              if (x < s.x + s.w + 100 && x + 150 > s.x - 100 && y < s.y + s.h + 100 && y + 150 > s.y - 100) overlap = true; 
+            }
             
             if (!overlap) {
-                if (Math.random() > 0.6) trees.push({ x, y, r: 30 + Math.random()*20 });
-                else {
+                if (Math.random() > 0.6) {
+                  trees.push({ x, y, r: 30 + Math.random()*20 });
+                } else {
                     let hw = 80 + Math.random()*60, hh = 80 + Math.random()*60;
                     if (!isOnRoad(x+hw, y, 40) && !isOnRoad(x, y+hh, 40) && !isOnRoad(x+hw, y+hh, 40)) {
                         houses.push({ x, y, w: hw, h: hh, color: `hsl(${Math.random()*360}, 15%, 35%)` });
@@ -439,12 +559,45 @@
         if (!isInWater(i, 10000)) streetLights.push({ x: i, y: 9800 });
         if (!isInWater(8000, i)) streetLights.push({ x: 7800, y: i });
     }
+
+    // Спавн трафика
+    for (let i = 0; i < 15; i++) {
+      spawnTrafficCar();
+    }
   }
   initWorld();
 
-  // ==========================================
+  function spawnTrafficCar() {
+    let road = roadSegments[Math.floor(Math.random() * roadSegments.length)];
+    let isHorizontal = road.y1 === road.y2;
+    let progress = Math.random();
+    let x = road.x1 + (road.x2 - road.x1) * progress;
+    let y = road.y1 + (road.y2 - road.y1) * progress;
+    
+    // Сдвигаем на правую полосу
+    if (isHorizontal) {
+      y += road.w / 4;
+      if (road.x1 < road.x2) x -= 100; else x += 100;
+    } else {
+      x -= road.w / 4;
+      if (road.y1 < road.y2) y -= 100; else y += 100;
+    }
+
+    trafficCars.push({
+      x: x, y: y,
+      angle: isHorizontal ? (road.x1 < road.x2 ? 0 : Math.PI) : (road.y1 < road.y2 ? Math.PI/2 : -Math.PI/2),
+      speed: 5 + Math.random() * 5,
+      color: `hsl(${Math.random()*360}, 50%, 40%)`,
+      w: 140, h: 70,
+      road: road,
+      progress: progress,
+      dir: (road.x1 < road.x2 || road.y1 < road.y2) ? 1 : -1
+    });
+  }
+
+  // ============================================================================
   // УПРАВЛЕНИЕ И UI
-  // ==========================================
+  // ============================================================================
   window.addEventListener('blur', () => { for(let k in keys) keys[k] = false; });
   window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
@@ -453,17 +606,53 @@
     if (key === 'e' || key === 'у') { if (!gameState.activePanel) interact(); e.preventDefault(); }
     if (key === 'f' || key === 'а') { if (!gameState.activePanel) exitCar(); e.preventDefault(); }
     if (key === 'q' || key === 'й') { if (gameState.inCar && !gameState.activePanel) toggleEngine(); e.preventDefault(); }
-    if (key === 'l' || key === 'д') { if (gameState.inCar && !gameState.activePanel) { car.headlights = !car.headlights; showNotif(car.headlights ? "Фары включены" : "Фары выключены", "#3498db"); } e.preventDefault(); }
+    if (key === 'l' || key === 'д') { 
+      if (gameState.inCar && !gameState.activePanel) { 
+        car.headlights = !car.headlights; 
+        showNotif(car.headlights ? "Фары включены" : "Фары выключены", "#3498db"); 
+      } 
+      e.preventDefault(); 
+    }
     if (key === 'm' || key === 'ь') { bgMusic.muted = !bgMusic.muted; e.preventDefault(); }
     
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift', ' '].includes(key)) e.preventDefault();
   });
   window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
-  function isUp() { return keys['w'] || keys['ц'] || keys['arrowup']; }
-  function isDown() { return keys['s'] || keys['ы'] || keys['arrowdown']; }
-  function isLeft() { return keys['a'] || keys['ф'] || keys['arrowleft']; }
-  function isRight() { return keys['d'] || keys['в'] || keys['arrowright']; }
+  // Мобильный джойстик
+  let joystickActive = false;
+  let joystickVector = { x: 0, y: 0 };
+  const joystickZone = document.getElementById('joystick-zone');
+  const joystickKnob = document.getElementById('joystick-knob');
+
+  if (isMobile) {
+    joystickZone.addEventListener('touchstart', (e) => { joystickActive = true; updateJoystick(e.touches[0]); e.preventDefault(); });
+    joystickZone.addEventListener('touchmove', (e) => { if (joystickActive) updateJoystick(e.touches[0]); e.preventDefault(); });
+    joystickZone.addEventListener('touchend', () => { joystickActive = false; joystickKnob.style.top = '35px'; joystickKnob.style.left = '35px'; joystickVector = {x:0, y:0}; });
+  }
+
+  function updateJoystick(touch) {
+    let rect = joystickZone.getBoundingClientRect();
+    let centerX = rect.left + rect.width / 2;
+    let centerY = rect.top + rect.height / 2;
+    let dx = touch.clientX - centerX;
+    let dy = touch.clientY - centerY;
+    let dist = Math.hypot(dx, dy);
+    let maxDist = 35;
+    
+    if (dist > maxDist) { dx = (dx / dist) * maxDist; dy = (dy / dist) * maxDist; }
+    
+    joystickKnob.style.left = (35 + dx) + 'px';
+    joystickKnob.style.top = (35 + dy) + 'px';
+    
+    joystickVector.x = dx / maxDist;
+    joystickVector.y = dy / maxDist;
+  }
+
+  function isUp() { return keys['w'] || keys['ц'] || keys['arrowup'] || joystickVector.y < -0.3; }
+  function isDown() { return keys['s'] || keys['ы'] || keys['arrowdown'] || joystickVector.y > 0.3; }
+  function isLeft() { return keys['a'] || keys['ф'] || keys['arrowleft'] || joystickVector.x < -0.3; }
+  function isRight() { return keys['d'] || keys['в'] || keys['arrowright'] || joystickVector.x > 0.3; }
 
   function showNotif(text, color = '#f1c40f') {
     const n = document.getElementById('notification');
@@ -494,6 +683,15 @@
         });
     } else {
         invDiv.style.display = 'none';
+    }
+
+    // Розыск
+    const wantedDiv = document.getElementById('wanted-stars');
+    if (gameState.wanted > 0) {
+      wantedDiv.style.display = 'block';
+      wantedDiv.textContent = 'Розыск: ' + '★'.repeat(gameState.wanted);
+    } else {
+      wantedDiv.style.display = 'none';
     }
 
     // Квест
@@ -541,9 +739,40 @@
     updateHUD();
   }
 
-  // ==========================================
+  // ============================================================================
+  // СИСТЕМА СОХРАНЕНИЯ
+  // ============================================================================
+  function saveGame() {
+    const saveData = {
+      stats: stats,
+      player: { x: player.x, y: player.y },
+      car: { x: car.x, y: car.y, color: car.color, health: car.health, fuel: car.fuel, maxSpeed: car.maxSpeed, accel: car.accel },
+      gameState: { wanted: gameState.wanted, activeQuest: gameState.activeQuest }
+    };
+    localStorage.setItem('novyBytSave', JSON.stringify(saveData));
+    showNotif("Игра успешно сохранена!", "#2ecc71");
+  }
+
+  function loadGame() {
+    const saveStr = localStorage.getItem('novyBytSave');
+    if (saveStr) {
+      const data = JSON.parse(saveStr);
+      stats = data.stats;
+      player.x = data.player.x; player.y = data.player.y;
+      car.x = data.car.x; car.y = data.car.y; car.color = data.car.color; car.health = data.car.health; car.fuel = data.car.fuel; car.maxSpeed = data.car.maxSpeed; car.accel = data.car.accel;
+      gameState.wanted = data.gameState.wanted;
+      gameState.activeQuest = data.gameState.activeQuest;
+      showNotif("Игра загружена!", "#2ecc71");
+      updateHUD();
+      toggleSettings();
+    } else {
+      showNotif("Сохранений не найдено!", "#e74c3c");
+    }
+  }
+
+  // ============================================================================
   // ВЗАИМОДЕЙСТВИЕ И ДИАЛОГИ
-  // ==========================================
+  // ============================================================================
   function interact() {
     if (gameState.activePanel) return;
 
@@ -585,9 +814,12 @@
     }
   }
 
+  let typewriterInterval;
+
   function openDialogue(npc) {
     let title = npc.name, text = "", choices = [];
 
+    // Логика квестов
     if (npc.id === 'misha') {
       text = "Ммм... Шаурма. Слушай, Равиль, принеси мне шаурму от Ноны, а я тебе сотку накину!";
       if (stats.inventory.includes("Шаурма")) {
@@ -611,29 +843,48 @@
     }
     else if (npc.id === 'nefed') {
       text = "Сын мой, храм наш нуждается в реставрации. Поможешь, чем сможешь?";
-      choices.push({ text: "Пожертвовать 500 ₽", action: () => { if(stats.money >= 500) { stats.money -= 500; stats.mood = Math.min(100, stats.mood+20); showNotif("Благословение получено. +20 Настроения", "#f1c40f"); } closeDialogue(); }});
+      choices.push({ text: "Пожертвовать 500 ₽", action: () => { 
+          if(stats.money >= 500) { stats.money -= 500; stats.mood = Math.min(100, stats.mood+20); showNotif("Благословение получено. +20 Настроения", "#f1c40f"); } 
+          closeDialogue(); 
+      }});
       choices.push({ text: "Извините, нет.", action: () => closeDialogue() });
     }
     else if (npc.id === 'pasha') {
       text = "Слушай, брат, у меня сделка подгорает. Надо гнать в Музей Тракторов, но моя машина сломалась. Подкинешь меня?";
-      if (gameState.activeQuest && gameState.activeQuest.id === 'pasha') { choices.push({ text: "Мы уже едем.", action: () => closeDialogue() }); } 
-      else {
-        choices.push({ text: "Прыгай в тачку.", action: () => { gameState.activeQuest = { id: 'pasha', text: 'Отвезти Пашу в Музей Тракторов' }; npc.state = 'inCar'; npc.angle = car.angle; closeDialogue(); }});
+      if (gameState.activeQuest && gameState.activeQuest.id === 'pasha') { 
+        choices.push({ text: "Мы уже едем.", action: () => closeDialogue() }); 
+      } else {
+        choices.push({ text: "Прыгай в тачку.", action: () => { 
+            gameState.activeQuest = { id: 'pasha', text: 'Отвезти Пашу в Музей Тракторов' }; 
+            npc.state = 'inCar'; npc.angle = car.angle; closeDialogue(); 
+        }});
       }
     }
     else if (npc.id === 'shelukha') {
       text = "О, Равиль! Мазду прокачал? Есть заезд на Мемориал, мажем по 1000 рублей. Слабо?";
-      choices.push({ text: "Забились!", action: () => { if(stats.money >= 1000) { gameState.activeQuest = { id: 'shelukha', text: 'Доехать до Мемориала первым' }; stats.money -= 1000; closeDialogue(); } else showNotif("Нет денег!", "#e74c3c"); }});
+      choices.push({ text: "Забились!", action: () => { 
+          if(stats.money >= 1000) { 
+            gameState.activeQuest = { id: 'shelukha', text: 'Доехать до Мемориала первым' }; 
+            stats.money -= 1000; closeDialogue(); 
+          } else showNotif("Нет денег!", "#e74c3c"); 
+      }});
       choices.push({ text: "Я пас.", action: () => closeDialogue() });
     }
     else if (npc.id === 'gosha') {
       text = "Эй, шеф! Подбросишь до Ленты? Заплачу 300 рублей.";
-      choices.push({ text: "Садись.", action: () => { gameState.activeQuest = { id: 'gosha', text: 'Отвезти Гошу в Ленту' }; npc.state = 'inCar'; npc.angle = car.angle; closeDialogue(); }});
+      choices.push({ text: "Садись.", action: () => { 
+          gameState.activeQuest = { id: 'gosha', text: 'Отвезти Гошу в Ленту' }; 
+          npc.state = 'inCar'; npc.angle = car.angle; closeDialogue(); 
+      }});
       choices.push({ text: "Не по пути.", action: () => closeDialogue() });
     }
     else if (npc.id === 'lyokha') {
       text = "Слышал, у тебя тачка огонь. Хочешь купить редкий тюнинг? 3000 рублей.";
-      choices.push({ text: "Беру.", action: () => { if(stats.money >= 3000) { stats.money -= 3000; stats.hasNitro = true; showNotif("Нитро установлено!", "#e74c3c"); } closeDialogue(); }});
+      choices.push({ text: "Беру.", action: () => { 
+          if(stats.money >= 3000) { 
+            stats.money -= 3000; stats.hasNitro = true; showNotif("Нитро установлено!", "#e74c3c"); 
+          } closeDialogue(); 
+      }});
       choices.push({ text: "Дорого.", action: () => closeDialogue() });
     }
     else if (npc.id === 'katya') {
@@ -645,17 +896,57 @@
       choices.push({ text: "Ничего.", action: () => closeDialogue() });
     }
 
-    gameState.activePanel = 'dialogue'; document.getElementById('dialogue-panel').style.display = 'flex';
+    // Настройка UI диалога
+    gameState.activePanel = 'dialogue'; 
+    document.getElementById('dialogue-panel').style.display = 'flex';
     document.getElementById('dialogue-title').textContent = title;
-    document.getElementById('dialogue-text').textContent = text;
-    const container = document.getElementById('dialogue-choices'); container.innerHTML = '';
-    choices.forEach(c => { const btn = document.createElement('button'); btn.className = 'btn'; btn.textContent = c.text; btn.onclick = c.action; container.appendChild(btn); });
-  }
-  function closeDialogue() { gameState.activePanel = null; document.getElementById('dialogue-panel').style.display = 'none'; updateHUD(); }
+    
+    // Портрет (эмодзи в зависимости от цвета)
+    const portrait = document.getElementById('dialogue-portrait');
+    if (npc.id === 'nefed') portrait.textContent = '⛪';
+    else if (npc.id === 'shelukha') portrait.textContent = '🏎️';
+    else if (npc.id === 'misha') portrait.textContent = '🌯';
+    else if (npc.id === 'vanya') portrait.textContent = '🔧';
+    else portrait.textContent = '👤';
+    portrait.style.color = npc.color;
 
-  // ==========================================
+    const textContainer = document.getElementById('dialogue-text');
+    const choicesContainer = document.getElementById('dialogue-choices');
+    
+    textContainer.textContent = "";
+    choicesContainer.innerHTML = "";
+    
+    // Эффект печатной машинки
+    clearInterval(typewriterInterval);
+    let charIndex = 0;
+    typewriterInterval = setInterval(() => {
+      textContainer.textContent += text[charIndex];
+      charIndex++;
+      if (charIndex >= text.length) clearInterval(typewriterInterval);
+    }, 20);
+
+    // Добавляем кнопки с задержкой
+    setTimeout(() => {
+      choices.forEach(c => { 
+        const btn = document.createElement('button'); 
+        btn.className = 'btn'; 
+        btn.textContent = c.text; 
+        btn.onclick = c.action; 
+        choicesContainer.appendChild(btn); 
+      });
+    }, text.length * 20);
+  }
+
+  function closeDialogue() { 
+    clearInterval(typewriterInterval);
+    gameState.activePanel = null; 
+    document.getElementById('dialogue-panel').style.display = 'none'; 
+    updateHUD(); 
+  }
+
+  // ============================================================================
   // МАГАЗИНЫ И СЕРВИСЫ
-  // ==========================================
+  // ============================================================================
   function openShopMenu(loc) {
     gameState.activePanel = 'shop'; document.getElementById('shop-panel').style.display = 'flex';
     document.getElementById('shop-title').textContent = loc.name;
@@ -673,7 +964,11 @@
     items.forEach(item => {
         const btn = document.createElement('button'); btn.className = 'btn';
         btn.innerHTML = `<span>${item.name}</span> <span class="btn-price">${item.price} ₽</span>`;
-        btn.onclick = () => { if (stats.money >= item.price) { stats.money -= item.price; item.action(); updateHUD(); showNotif("Куплено!", "#2ecc71"); closeShop(); } else showNotif("Мало денег!", "#e74c3c"); };
+        btn.onclick = () => { 
+          if (stats.money >= item.price) { 
+            stats.money -= item.price; item.action(); updateHUD(); showNotif("Куплено!", "#2ecc71"); closeShop(); 
+          } else showNotif("Мало денег!", "#e74c3c"); 
+        };
         container.appendChild(btn);
     });
   }
@@ -701,11 +996,15 @@
 
     let space = car.maxFuel - car.fuel;
     let price = Math.floor(space * 60);
-    if (space <= 0) { container.innerHTML = `<div class="panel-text">Бак полон.</div>`; } 
-    else {
+    if (space <= 0) { 
+      container.innerHTML = `<div class="panel-text">Бак полон.</div>`; 
+    } else {
         const btn = document.createElement('button'); btn.className = 'btn';
         btn.innerHTML = `<span>Полный бак (${space.toFixed(1)} л)</span> <span class="btn-price">${price} ₽</span>`;
-        btn.onclick = () => { if (stats.money >= price) { stats.money -= price; car.fuel = car.maxFuel; updateHUD(); closeShop(); } else showNotif("Мало денег!", "#e74c3c"); };
+        btn.onclick = () => { 
+          if (stats.money >= price) { stats.money -= price; car.fuel = car.maxFuel; updateHUD(); closeShop(); } 
+          else showNotif("Мало денег!", "#e74c3c"); 
+        };
         container.appendChild(btn);
     }
   }
@@ -727,27 +1026,35 @@
         const btn = document.createElement('button'); btn.className = 'btn' + (disabled ? ' btn-disabled' : '');
         btn.innerHTML = `<span>${act.name} ${disabled ? '(Выполнено)' : ''}</span> <span class="btn-price">${act.price} ₽</span>`;
         if (!disabled) {
-            btn.onclick = () => { if (stats.money >= act.price) { stats.money -= act.price; act.action(); updateHUD(); showNotif("Готово!", "#2ecc71"); closeShop(); } else showNotif("Мало денег!", "#e74c3c"); };
+            btn.onclick = () => { 
+              if (stats.money >= act.price) { stats.money -= act.price; act.action(); updateHUD(); showNotif("Готово!", "#2ecc71"); closeShop(); } 
+              else showNotif("Мало денег!", "#e74c3c"); 
+            };
         }
         container.appendChild(btn);
     });
   }
 
-  function closeShop() { gameState.activePanel = null; document.getElementById('shop-panel').style.display = 'none'; updateHUD(); }
+  function closeShop() { 
+    gameState.activePanel = null; 
+    document.getElementById('shop-panel').style.display = 'none'; 
+    updateHUD(); 
+  }
 
-  // ==========================================
-  // ФИЗИКА
-  // ==========================================
-  function getCarCircles(cx, cy) {
+  // ============================================================================
+  // ФИЗИКА И КОЛЛИЗИИ
+  // ============================================================================
+  function getCarCircles(cx, cy, angle, w, h) {
     return [
-      { x: cx + Math.cos(car.angle) * 45, y: cy + Math.sin(car.angle) * 45, r: 35 },
-      { x: cx, y: cy, r: 38 },
-      { x: cx - Math.cos(car.angle) * 45, y: cy - Math.sin(car.angle) * 45, r: 35 }
+      { x: cx + Math.cos(angle) * (w/3), y: cy + Math.sin(angle) * (w/3), r: h/2.2 },
+      { x: cx, y: cy, r: h/2.1 },
+      { x: cx - Math.cos(angle) * (w/3), y: cy - Math.sin(angle) * (w/3), r: h/2.2 }
     ];
   }
 
   function checkCarCollisions(cx, cy) {
-    let circles = getCarCircles(cx, cy);
+    let circles = getCarCircles(cx, cy, car.angle, car.width, car.height);
+    
     // Магазины
     for (let loc of locations) {
       for (let c of circles) {
@@ -756,6 +1063,7 @@
         if ((c.x - closestX)**2 + (c.y - closestY)**2 < c.r**2) return true;
       }
     }
+    
     // Дома
     for (let h of houses) {
       if (Math.abs(h.x - cx) > 200 || Math.abs(h.y - cy) > 200) continue;
@@ -765,31 +1073,118 @@
         if ((c.x - closestX)**2 + (c.y - closestY)**2 < c.r**2) return true;
       }
     }
-    // Деревья
+    
+    // Деревья (только стволы)
     for (let t of trees) {
       if (Math.abs(t.x - cx) > 200 || Math.abs(t.y - cy) > 200) continue;
       for (let c of circles) {
-        if (Math.hypot(c.x - t.x, c.y - t.y) < c.r + t.r * 0.3) return true; // Столкновение только со стволом
+        if (Math.hypot(c.x - t.x, c.y - t.y) < c.r + t.r * 0.3) return true;
       }
     }
+    
     // NPC
     for (let npc of npcs) {
         if(npc.state === 'inCar') continue;
-        for (let c of circles) if (Math.hypot(c.x - npc.x, c.y - npc.y) < c.r + npc.radius) return true;
+        for (let c of circles) {
+          if (Math.hypot(c.x - npc.x, c.y - npc.y) < c.r + npc.radius) {
+            if (Math.abs(car.speed) > 5) addWanted(1);
+            return true;
+          }
+        }
     }
+
+    // Трафик
+    for (let tc of trafficCars) {
+      for (let c of circles) {
+        let tcCircles = getCarCircles(tc.x, tc.y, tc.angle, tc.w, tc.h);
+        for (let tcc of tcCircles) {
+           if (Math.hypot(c.x - tcc.x, c.y - tcc.y) < c.r + tcc.r) {
+             if (Math.abs(car.speed) > 5) addWanted(1);
+             return true;
+           }
+        }
+      }
+    }
+
     return false;
   }
 
+  function addWanted(amount) {
+    if (gameState.wanted < 5) {
+      gameState.wanted += amount;
+      showNotif("Вы нарушили закон! Уровень розыска повышен.", "#e74c3c");
+      updateHUD();
+    }
+  }
+
+  // ============================================================================
+  // ОБНОВЛЕНИЕ ИГРОВОЙ ЛОГИКИ
+  // ============================================================================
   function update() {
     updateWeather();
     if (gameState.activePanel) return;
 
-    // Частицы
-    for(let i = particles.length - 1; i >= 0; i--) { let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.04; if(p.life <= 0) particles.splice(i, 1); }
-    for(let i = skidmarks.length - 1; i >= 0; i--) { skidmarks[i].life -= 0.01; if(skidmarks[i].life <= 0) skidmarks.splice(i, 1); }
+    // Частицы и следы
+    for(let i = particles.length - 1; i >= 0; i--) { 
+      let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.04; 
+      if(p.life <= 0) particles.splice(i, 1); 
+    }
+    for(let i = skidmarks.length - 1; i >= 0; i--) { 
+      skidmarks[i].life -= 0.01; 
+      if(skidmarks[i].life <= 0) skidmarks.splice(i, 1); 
+    }
 
-    // Дым при поломке
     spawnSmoke();
+
+    // Трафик
+    trafficCars.forEach(tc => {
+      tc.progress += (tc.speed / Math.hypot(tc.road.x2 - tc.road.x1, tc.road.y2 - tc.road.y1)) * tc.dir;
+      if (tc.progress > 1.1) { tc.progress = -0.1; }
+      if (tc.progress < -0.1) { tc.progress = 1.1; }
+      
+      tc.x = tc.road.x1 + (tc.road.x2 - tc.road.x1) * tc.progress;
+      tc.y = tc.road.y1 + (tc.road.y2 - tc.road.y1) * tc.progress;
+      
+      // Сдвиг на полосу
+      let isHorizontal = tc.road.y1 === tc.road.y2;
+      if (isHorizontal) {
+        tc.y += tc.road.w / 4 * tc.dir;
+        if (tc.dir > 0) tc.x -= 100; else tc.x += 100;
+        tc.angle = tc.dir > 0 ? 0 : Math.PI;
+      } else {
+        tc.x -= tc.road.w / 4 * tc.dir;
+        if (tc.dir > 0) tc.y -= 100; else tc.y += 100;
+        tc.angle = tc.dir > 0 ? Math.PI/2 : -Math.PI/2;
+      }
+    });
+
+    // Полиция
+    if (gameState.wanted > 0) {
+      if (policeCars.length < gameState.wanted) {
+        policeCars.push({
+          x: car.x + 500 + Math.random() * 500,
+          y: car.y + 500 + Math.random() * 500,
+          angle: 0, speed: 15 + gameState.wanted * 2
+        });
+      }
+      policeCars.forEach(p => {
+        let dx = car.x - p.x;
+        let dy = car.y - p.y;
+        p.angle = Math.atan2(dy, dx);
+        p.x += Math.cos(p.angle) * p.speed;
+        p.y += Math.sin(p.angle) * p.speed;
+        
+        if (Math.hypot(dx, dy) < 100) {
+          showNotif("Полиция вас поймала! Штраф.", "#e74c3c");
+          stats.money = Math.max(0, stats.money - 500);
+          gameState.wanted = 0;
+          policeCars = [];
+          respawnCar(); // Эвакуация
+        }
+      });
+    } else {
+      policeCars = [];
+    }
 
     // Квесты по локациям
     if (gameState.activeQuest && gameState.inCar) {
@@ -829,26 +1224,32 @@
         
         if (stats.hasNitro && keys['shift'] && engineForce > 0) engineForce *= 2.5;
 
-        car.vx += Math.cos(car.angle) * engineForce; car.vy += Math.sin(car.angle) * engineForce;
+        car.vx += Math.cos(car.angle) * engineForce; 
+        car.vy += Math.sin(car.angle) * engineForce;
         car.speed = car.vx * Math.cos(car.angle) + car.vy * Math.sin(car.angle);
         
         if (Math.abs(car.speed) > 0.5) {
-          let turnFactor = Math.min(1, Math.abs(car.speed) / 15); let currentTurn = car.turnSpeed * turnFactor;
+          let turnFactor = Math.min(1, Math.abs(car.speed) / 15); 
+          let currentTurn = car.turnSpeed * turnFactor;
           if (isLeft()) car.angle -= currentTurn * (car.speed > 0 ? 1 : -1);
           if (isRight()) car.angle += currentTurn * (car.speed > 0 ? 1 : -1);
         }
 
         let forwardX = Math.cos(car.angle); let forwardY = Math.sin(car.angle);
         let rightX = Math.cos(car.angle + Math.PI/2); let rightY = Math.sin(car.angle + Math.PI/2);
-        let vForward = car.vx * forwardX + car.vy * forwardY; let vLateral = car.vx * rightX + car.vy * rightY;
+        let vForward = car.vx * forwardX + car.vy * forwardY; 
+        let vLateral = car.vx * rightX + car.vy * rightY;
 
         // Снижаем сцепление в дождь
         let currentGrip = weather.isRaining ? car.grip * 0.5 : car.grip;
         let currentDrag = weather.isRaining ? car.drag * 0.98 : car.drag;
 
         if (Math.abs(vLateral) > 2 && Math.abs(car.speed) > 3) skidmarks.push({ x: car.x, y: car.y, angle: car.angle, life: 1 });
-        vLateral *= currentGrip; vForward *= 0.99; 
-        car.vx = vForward * forwardX + vLateral * rightX; car.vy = vForward * forwardY + vLateral * rightY;
+        
+        vLateral *= currentGrip; 
+        vForward *= 0.99; 
+        car.vx = vForward * forwardX + vLateral * rightX; 
+        car.vy = vForward * forwardY + vLateral * rightY;
         car.vx *= currentDrag; car.vy *= currentDrag;
 
         let curSpeed = Math.hypot(car.vx, car.vy);
@@ -864,6 +1265,7 @@
             car.x = oldX; car.vx *= -0.3; 
             if (Math.abs(car.speed) > 10) { car.health = Math.max(0, car.health - 5); showNotif("Авария! -5% прочности", "#e74c3c"); }
         }
+        
         let oldY = car.y; car.y += car.vy;
         if (checkCarCollisions(car.x, car.y)) { 
             car.y = oldY; car.vy *= -0.3; 
@@ -879,18 +1281,26 @@
       } else {
         car.speed = 0; car.vx = 0; car.vy = 0;
       }
-      player.x = car.x; player.y = car.y; player.stamina = Math.min(player.maxStamina, player.stamina + 1);
+      player.x = car.x; player.y = car.y; 
+      player.stamina = Math.min(player.maxStamina, player.stamina + 1);
     } else {
       if (engineGain && engineGain.gain.value > 0) stopEngineSound();
 
       let dx = 0, dy = 0;
-      if (isUp()) dy -= 1; if (isDown()) dy += 1; if (isLeft()) dx -= 1; if (isRight()) dx += 1;
+      if (isUp()) dy -= 1; 
+      if (isDown()) dy += 1; 
+      if (isLeft()) dx -= 1; 
+      if (isRight()) dx += 1;
 
       if (dx !== 0 || dy !== 0) {
         const len = Math.hypot(dx, dy); dx /= len; dy /= len;
-        let targetAngle = Math.atan2(dy, dx); let angleDiff = targetAngle - player.angle;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2; while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        if (Math.abs(angleDiff) > 0.05) player.angle += angleDiff * player.turnSpeed; else player.angle = targetAngle;
+        let targetAngle = Math.atan2(dy, dx); 
+        let angleDiff = targetAngle - player.angle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2; 
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        
+        if (Math.abs(angleDiff) > 0.05) player.angle += angleDiff * player.turnSpeed; 
+        else player.angle = targetAngle;
         
         if (keys['shift'] && player.stamina > 0) {
           player.isSprinting = true; player.stamina -= 0.8; player.speed += player.accel;
@@ -910,11 +1320,13 @@
         player.walkCycle = 0; player.stamina = Math.min(player.maxStamina, player.stamina + 0.5);
       }
 
-      let nextX = player.x + Math.cos(player.angle) * player.speed; let nextY = player.y + Math.sin(player.angle) * player.speed;
+      let nextX = player.x + Math.cos(player.angle) * player.speed; 
+      let nextY = player.y + Math.sin(player.angle) * player.speed;
       let hitX = false; player.x = nextX;
       
       for (let loc of locations) {
-        let cx = Math.max(loc.x, Math.min(player.x, loc.x + loc.w)); let cy = Math.max(loc.y, Math.min(player.y, loc.y + loc.h));
+        let cx = Math.max(loc.x, Math.min(player.x, loc.x + loc.w)); 
+        let cy = Math.max(loc.y, Math.min(player.y, loc.y + loc.h));
         if ((player.x - cx)**2 + (player.y - cy)**2 < player.radius**2) hitX = true;
       }
       if (isInWater(player.x, player.y)) hitX = true;
@@ -922,18 +1334,21 @@
 
       let hitY = false; player.y = nextY;
       for (let loc of locations) {
-        let cx = Math.max(loc.x, Math.min(player.x, loc.x + loc.w)); let cy = Math.max(loc.y, Math.min(player.y, loc.y + loc.h));
+        let cx = Math.max(loc.x, Math.min(player.x, loc.x + loc.w)); 
+        let cy = Math.max(loc.y, Math.min(player.y, loc.y + loc.h));
         if ((player.x - cx)**2 + (player.y - cy)**2 < player.radius**2) hitY = true;
       }
       if (isInWater(player.x, player.y)) hitY = true;
       if (hitY) player.y -= Math.sin(player.angle) * player.speed;
     }
 
+    // Ограничение по миру
     if (player.x < 0) player.x = 0; if (player.y < 0) player.y = 0;
     if (player.x > WORLD_SIZE) player.x = WORLD_SIZE; if (player.y > WORLD_SIZE) player.y = WORLD_SIZE;
     if (car.x < 0) car.x = 0; if (car.y < 0) car.y = 0;
     if (car.x > WORLD_SIZE) car.x = WORLD_SIZE; if (car.y > WORLD_SIZE) car.y = WORLD_SIZE;
 
+    // Камера
     camera.x = player.x - W / 2; camera.y = player.y - H / 2;
     if (camera.x < 0) camera.x = 0; if (camera.y < 0) camera.y = 0;
     if (camera.x > WORLD_SIZE - W) camera.x = WORLD_SIZE - W;
@@ -973,16 +1388,24 @@
     if (text) { hint.innerHTML = text; hint.style.display = 'block'; } else { hint.style.display = 'none'; }
   }
 
-  // ==========================================
-  // ОТРИСОВКА
-  // ==========================================
+  // ============================================================================
+  // ОТРИСОВКА ГРАФИКИ
+  // ============================================================================
   function drawHuman(x, y, color, name, walkCycle, isRavil, angle) {
     ctx.save(); ctx.translate(x, y); 
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0, 0, 18, 9, 0, 0, Math.PI*2); ctx.fill();
-    let safeAngle = isNaN(angle) ? -Math.PI/2 : angle; let a = (safeAngle + Math.PI * 2) % (Math.PI * 2); let angleDeg = a * 180 / Math.PI;
-    let dir = 3; if (angleDeg >= 45 && angleDeg < 135) dir = 0; else if (angleDeg >= 135 && angleDeg < 225) dir = 1; else if (angleDeg >= 225 && angleDeg < 315) dir = 2; 
+    
+    let safeAngle = isNaN(angle) ? -Math.PI/2 : angle; 
+    let a = (safeAngle + Math.PI * 2) % (Math.PI * 2); 
+    let angleDeg = a * 180 / Math.PI;
+    let dir = 3; 
+    if (angleDeg >= 45 && angleDeg < 135) dir = 0; 
+    else if (angleDeg >= 135 && angleDeg < 225) dir = 1; 
+    else if (angleDeg >= 225 && angleDeg < 315) dir = 2; 
+    
     let swing = Math.sin(walkCycle) * 0.6;
 
+    // Ноги
     ctx.fillStyle = '#2c3e50'; 
     if (dir === 0) {
       ctx.save(); ctx.translate(-6, -8); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
@@ -990,24 +1413,44 @@
     } else if (dir === 2) {
       ctx.save(); ctx.translate(-6, -8); ctx.rotate(-swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
       ctx.save(); ctx.translate(6, -8); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
-    } else { ctx.save(); ctx.translate(0, -6); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-7, 0, 14, 12, 3); ctx.fill(); ctx.restore(); }
+    } else { 
+      ctx.save(); ctx.translate(0, -6); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-7, 0, 14, 12, 3); ctx.fill(); ctx.restore(); 
+    }
 
+    // Тело
     ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(-12, -34, 24, 26, 6); ctx.fill(); 
+    
+    // Руки
     ctx.fillStyle = '#fcd0b3'; 
     if (dir === 0 || dir === 2) {
       ctx.save(); ctx.translate(-14, -28); ctx.rotate(-swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore();
       ctx.save(); ctx.translate(14, -28); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore();
-    } else { ctx.save(); ctx.translate(-10, -26); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore(); }
+    } else { 
+      ctx.save(); ctx.translate(-10, -26); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore(); 
+    }
 
+    // Голова
     ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(0, -46, 14, 0, Math.PI*2); ctx.fill();
+    
+    // Волосы/Шапка
     if (isRavil) {
         ctx.fillStyle = '#111';
-        if (dir === 0) { ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill(); ctx.beginPath(); ctx.roundRect(-10, -48, 20, 7, 3); ctx.fill(); }
+        if (dir === 0) { 
+          ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill(); 
+          ctx.beginPath(); ctx.roundRect(-10, -48, 20, 7, 3); ctx.fill(); 
+        }
         else if (dir === 2) { ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill(); }
-        else { ctx.beginPath(); ctx.roundRect(dir === 3 ? 2 : -14, -48, 12, 7, 3); ctx.fill(); ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill(); }
+        else { 
+          ctx.beginPath(); ctx.roundRect(dir === 3 ? 2 : -14, -48, 12, 7, 3); ctx.fill(); 
+          ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill(); 
+        }
     } else {
-        ctx.fillStyle = '#8B4513'; ctx.beginPath(); ctx.arc(-4, -50, 10, Math.PI, 0); ctx.fill(); ctx.beginPath(); ctx.arc(4, -48, 10, Math.PI, 0); ctx.fill();
-        if (dir === 0) { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-5, -48, 2, 0, Math.PI*2); ctx.arc(5, -48, 2, 0, Math.PI*2); ctx.fill(); }
+        ctx.fillStyle = '#8B4513'; 
+        ctx.beginPath(); ctx.arc(-4, -50, 10, Math.PI, 0); ctx.fill(); 
+        ctx.beginPath(); ctx.arc(4, -48, 10, Math.PI, 0); ctx.fill();
+        if (dir === 0) { 
+          ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-5, -48, 2, 0, Math.PI*2); ctx.arc(5, -48, 2, 0, Math.PI*2); ctx.fill(); 
+        }
         else if (dir === 3) { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(8, -48, 2, 0, Math.PI*2); ctx.fill(); }
         else if (dir === 1) { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-8, -48, 2, 0, Math.PI*2); ctx.fill(); }
     }
@@ -1048,6 +1491,7 @@
 
     // Водитель и пассажиры
     if (gameState.inCar) { ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, -15, 8, 0, Math.PI*2); ctx.fill(); }
+    
     let pasha = npcs.find(n => n.id === 'pasha');
     let gosha = npcs.find(n => n.id === 'gosha');
     if (pasha && pasha.state === 'inCar') { ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, 15, 8, 0, Math.PI*2); ctx.fill(); }
@@ -1083,6 +1527,38 @@
     ctx.restore();
   }
 
+  function drawTrafficCar(tc) {
+    ctx.save(); ctx.translate(tc.x, tc.y); ctx.rotate(tc.angle);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; 
+    ctx.beginPath(); ctx.roundRect(-tc.w/2 + 10, -tc.h/2 + 10, tc.w, tc.h, 15); ctx.fill();
+    
+    let grad = ctx.createLinearGradient(0, -tc.h/2, 0, tc.h/2);
+    grad.addColorStop(0, tc.color); grad.addColorStop(0.5, '#111'); grad.addColorStop(1, tc.color);
+    ctx.beginPath(); ctx.roundRect(-tc.w/2, -tc.h/2, tc.w, tc.h, 15);
+    ctx.fillStyle = grad; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+    
+    ctx.fillStyle = 'rgba(10, 15, 20, 0.85)';
+    ctx.beginPath(); ctx.roundRect(-tc.w/4, -tc.h/2 + 10, tc.w/2, tc.h - 20, 10); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPoliceCar(p) {
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.roundRect(-70, -35, 140, 70, 15); ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+    
+    ctx.fillStyle = '#2980b9';
+    ctx.fillRect(-30, -35, 60, 70); // Синяя полоса
+    
+    // Мигалка
+    let flash = Math.floor(Date.now() / 200) % 2;
+    ctx.fillStyle = flash === 0 ? '#e74c3c' : '#3498db';
+    ctx.fillRect(-10, -10, 20, 20);
+    
+    ctx.restore();
+  }
+
   function drawMinimap() {
     const mapSize = 200; const mapX = 20; const mapY = H - mapSize - 20;
     ctx.save(); ctx.translate(mapX, mapY);
@@ -1098,23 +1574,86 @@
         ctx.lineWidth = Math.max(1, r.w * scale); ctx.strokeStyle = '#555'; ctx.stroke();
     }
     
-    locations.forEach(s => { ctx.fillStyle = s.type === 'landmark' ? '#f1c40f' : s.color; ctx.fillRect(s.x * scale - 3, s.y * scale - 3, Math.max(6, s.w * scale), Math.max(6, s.h * scale)); });
-    npcs.forEach(n => { if(n.state !== 'inCar') { ctx.fillStyle = n.color; ctx.beginPath(); ctx.arc(n.x*scale, n.y*scale, 2, 0, Math.PI*2); ctx.fill(); } });
+    locations.forEach(s => { 
+      ctx.fillStyle = s.type === 'landmark' ? '#f1c40f' : s.color; 
+      ctx.fillRect(s.x * scale - 3, s.y * scale - 3, Math.max(6, s.w * scale), Math.max(6, s.h * scale)); 
+    });
     
-    ctx.fillStyle = '#3498db'; ctx.beginPath(); ctx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI*2); ctx.fill();
+    npcs.forEach(n => { 
+      if(n.state !== 'inCar') { 
+        ctx.fillStyle = n.color; 
+        ctx.beginPath(); ctx.arc(n.x*scale, n.y*scale, 2, 0, Math.PI*2); ctx.fill(); 
+      } 
+    });
+
+    if (gameState.wanted > 0) {
+      policeCars.forEach(p => {
+        ctx.fillStyle = '#e74c3c';
+        ctx.beginPath(); ctx.arc(p.x*scale, p.y*scale, 3, 0, Math.PI*2); ctx.fill();
+      });
+    }
+    
+    ctx.fillStyle = '#3498db'; 
+    ctx.beginPath(); ctx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI*2); ctx.fill();
     ctx.restore();
+  }
+
+  function drawSkyAndClouds(timeData) {
+    if (timeData.isNight) {
+      // Звезды
+      ctx.fillStyle = '#fff';
+      for(let i=0; i<100; i++) {
+          let sx = (Math.sin(i*123) * 0.5 + 0.5) * W;
+          let sy = (Math.cos(i*321) * 0.5 + 0.5) * H * 0.6;
+          ctx.fillRect(sx, sy, 2, 2);
+      }
+    } else {
+      // Солнце
+      let sunProgress = (Date.now() % DAY_DURATION) / DAY_DURATION;
+      let sunX = W * sunProgress;
+      let sunY = H * 0.5 - Math.sin(sunProgress * Math.PI) * H * 0.4;
+      ctx.fillStyle = '#f1c40f';
+      ctx.beginPath(); ctx.arc(sunX, sunY, 50, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Облака
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    for (let c of clouds) {
+      let screenX = c.x - camera.x * 0.1; // Параллакс
+      let screenY = c.y - camera.y * 0.1;
+      if (screenX > -500 && screenX < W + 500 && screenY > -500 && screenY < H + 500) {
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, 40 * c.scale, 0, Math.PI*2);
+        ctx.arc(screenX + 30 * c.scale, screenY + 10 * c.scale, 30 * c.scale, 0, Math.PI*2);
+        ctx.arc(screenX - 30 * c.scale, screenY + 10 * c.scale, 35 * c.scale, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
   }
 
   function draw() {
     const timeData = getTimeData();
-    ctx.fillStyle = timeData.isNight ? '#1a2a1a' : '#2d5a27'; ctx.fillRect(0, 0, W, H);
+    
+    // Небо
+    ctx.fillStyle = timeData.isNight ? '#0a1020' : '#87CEEB';
+    ctx.fillRect(0, 0, W, H);
+    
+    drawSkyAndClouds(timeData);
+
+    // Земля
     ctx.save(); ctx.translate(-camera.x, -camera.y);
+    ctx.fillStyle = timeData.isNight ? '#1a2a1a' : '#2d5a27'; 
+    ctx.fillRect(-W, -H, WORLD_SIZE + W*2, WORLD_SIZE + H*2);
 
     // Вода
     waterAreas.forEach(w => {
       ctx.fillStyle = '#1a5276'; ctx.fillRect(w.x, w.y, w.w, w.h);
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      for (let s of w.sparkles) if (s.x > camera.x - 100 && s.x < camera.x + W + 100 && s.y > camera.y - 100 && s.y < camera.y + H + 100) ctx.fillRect(s.x, s.y, s.w, s.h);
+      for (let s of w.sparkles) {
+        if (s.x > camera.x - 100 && s.x < camera.x + W + 100 && s.y > camera.y - 100 && s.y < camera.y + H + 100) {
+          ctx.fillRect(s.x, s.y, s.w, s.h);
+        }
+      }
     });
 
     // Дороги
@@ -1193,6 +1732,13 @@
         if (npc.state !== 'inCar') drawHuman(npc.x, npc.y, npc.color, npc.name, 0, false, npc.angle);
     });
 
+    // Трафик
+    trafficCars.forEach(tc => drawTrafficCar(tc));
+
+    // Полиция
+    policeCars.forEach(p => drawPoliceCar(p));
+
+    // Игрок и машина
     if (!gameState.inCar) drawHuman(player.x, player.y, player.color, player.name, player.walkCycle, true, player.angle);
     drawCar(timeData);
 
