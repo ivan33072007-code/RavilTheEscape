@@ -9,7 +9,7 @@
   html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: system-ui, sans-serif; }
   canvas { display: block; width: 100vw; height: 100vh; background: #2d5a27; }
   #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-  
+
   #hud { position: absolute; top: 20px; left: 20px; color: #fff; font-weight: bold; font-size: 18px; text-shadow: 0 2px 4px #000; pointer-events: none; }
   #hud div { margin-bottom: 5px; }
   .stat-value { color: #f1c40f; }
@@ -31,7 +31,7 @@
 
   #settings-btn { position: absolute; top: 20px; right: 20px; pointer-events: auto; width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: 0.2s; }
   #settings-btn:hover { background: #fff; color: #000; }
-  
+
   #settings-panel { position: absolute; top: 80px; right: 20px; pointer-events: auto; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 10px; z-index: 200; width: 340px; }
   #settings-panel h3 { color: #f1c40f; margin-bottom: 10px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
   .control-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; align-items: center; }
@@ -60,14 +60,14 @@
     <div>Настроение: <span class="stat-value" id="hud-mood">50</span>%</div>
     <div id="stamina-label">Выносливость:</div>
     <div id="stamina-container"><div id="stamina-bar"></div></div>
-    
+
     <div id="fuel-label">
         <span>Бензин:</span>
         <span id="fuel-text">50 / 50 Л</span>
     </div>
     <div id="fuel-bar-container"><div id="fuel-bar"></div></div>
     <div id="fuel-range">Хватит на ~5000 км</div>
-    
+
     <div id="hud-mission">Пассажир: Егор (Следуйте по стрелке)</div>
   </div>
 
@@ -84,7 +84,7 @@
     <div class="control-row"><span>Музыка (Вкл/Выкл):</span> <span><span class="key">M</span></span></div>
     <div class="control-row"><span>Действие / Позвать:</span> <span><span class="key">E</span> / <span class="key">Пробел</span></span></div>
     <div class="control-row"><span>Выйти из машины:</span> <span><span class="key">F</span></span></div>
-    
+
     <div class="control-row" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
       <span>Музыка:</span> <input type="range" id="vol-music" min="0" max="1" step="0.05" value="0.3">
     </div>
@@ -115,16 +115,39 @@
 </div>
 
 <script>
+  // --- ФИКС 14: полифилл roundRect для старых браузеров ---
+  if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+      let tl, tr, br, bl;
+      if (typeof r === 'number') { tl = tr = br = bl = r; }
+      else if (Array.isArray(r)) {
+        if (r.length === 1) { tl = tr = br = bl = r[0]; }
+        else if (r.length === 2) { tl = br = r[0]; tr = bl = r[1]; }
+        else { tl = r[0]; tr = r[1]; br = r[2]; bl = r[3]; }
+      } else { tl = r.tl || 0; tr = r.tr || 0; br = r.br || 0; bl = r.bl || 0; }
+      this.moveTo(x + tl, y);
+      this.lineTo(x + w - tr, y);
+      this.quadraticCurveTo(x + w, y, x + w, y + tr);
+      this.lineTo(x + w, y + h - br);
+      this.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+      this.lineTo(x + bl, y + h);
+      this.quadraticCurveTo(x, y + h, x, y + h - bl);
+      this.lineTo(x, y + tl);
+      this.quadraticCurveTo(x, y, x + tl, y);
+    };
+  }
+
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const bgMusic = document.getElementById('bg-music');
+  bgMusic.volume = 0.3; // ФИКС 2: стартовая громкость музыки
   let W, H;
   function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
   window.addEventListener('resize', resize); resize();
 
   // --- ВРЕМЯ И ДЕНЬ/НОЧЬ ---
-  const DAY_DURATION = 10 * 60 * 1000; 
-  const NIGHT_DURATION = 5 * 60 * 1000; 
+  const DAY_DURATION = 10 * 60 * 1000;
+  const NIGHT_DURATION = 5 * 60 * 1000;
   const TOTAL_CYCLE = DAY_DURATION + NIGHT_DURATION;
   const gameStartTime = Date.now();
 
@@ -135,13 +158,13 @@
 
     if (cycleTime < DAY_DURATION) {
       let progress = cycleTime / DAY_DURATION;
-      gameHour = 6 + progress * 12; 
+      gameHour = 6 + progress * 12;
       if (progress < 0.05) alpha = (0.05 - progress) / 0.05 * 0.75;
       else if (progress > 0.95) alpha = (progress - 0.95) / 0.05 * 0.75;
       isNight = false;
     } else {
       let progress = (cycleTime - DAY_DURATION) / NIGHT_DURATION;
-      gameHour = 18 + progress * 12; 
+      gameHour = 18 + progress * 12;
       if (gameHour >= 24) gameHour -= 24;
       alpha = 0.75;
       if (progress < 0.1) alpha = 0.75 * (progress / 0.1);
@@ -156,7 +179,7 @@
   // --- АУДИО ---
   let audioCtx, masterGain, engineOsc1, engineOsc2, engineGain, engineFilter;
   let ambientOsc, ambientGain;
-  
+
   function initAudio() {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -166,13 +189,13 @@
 
       engineOsc1 = audioCtx.createOscillator(); engineOsc2 = audioCtx.createOscillator();
       engineGain = audioCtx.createGain(); engineFilter = audioCtx.createBiquadFilter();
-      engineOsc1.type = 'sawtooth'; engineOsc2.type = 'square'; engineOsc2.detune.value = 15; 
+      engineOsc1.type = 'sawtooth'; engineOsc2.type = 'square'; engineOsc2.detune.value = 15;
       engineFilter.type = 'lowpass'; engineFilter.frequency.value = 400;
       engineOsc1.connect(engineFilter); engineOsc2.connect(engineFilter); engineFilter.connect(engineGain); engineGain.connect(masterGain);
       engineOsc1.start(); engineOsc2.start(); engineGain.gain.value = 0;
 
       ambientOsc = audioCtx.createOscillator(); ambientGain = audioCtx.createGain();
-      ambientOsc.type = 'triangle'; ambientOsc.frequency.value = 150; ambientGain.gain.value = 0.015; 
+      ambientOsc.type = 'triangle'; ambientOsc.frequency.value = 150; ambientGain.gain.value = 0.015;
       ambientOsc.connect(ambientGain); ambientGain.connect(masterGain); ambientOsc.start();
     }
   }
@@ -185,8 +208,8 @@
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
     const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
-    const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 400; filter.Q.value = 1.0; 
-    const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08); 
+    const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 400; filter.Q.value = 1.0;
+    const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
     noise.connect(filter); filter.connect(gain); gain.connect(masterGain); noise.start(now);
   }
 
@@ -205,8 +228,8 @@
     engineFilter.frequency.setTargetAtTime(300 + (Math.abs(speed) * 30), audioCtx.currentTime, 0.1);
   }
 
-  document.getElementById('vol-music').addEventListener('input', (e) => { bgMusic.volume = e.target.value; });
-  document.getElementById('vol-game').addEventListener('input', (e) => { if(masterGain) masterGain.gain.value = e.target.value; });
+  document.getElementById('vol-music').addEventListener('input', (e) => { bgMusic.volume = parseFloat(e.target.value); });
+  document.getElementById('vol-game').addEventListener('input', (e) => { if(masterGain) masterGain.gain.value = parseFloat(e.target.value); });
 
   // --- ЧАСТИЦЫ ---
   let particles = [];
@@ -221,7 +244,7 @@
     const osc = audioCtx.createOscillator(); osc.type = 'sine';
     osc.frequency.setValueAtTime(80, now); osc.frequency.exponentialRampToValueAtTime(20, now + 0.15);
     const oscGain = audioCtx.createGain(); oscGain.gain.setValueAtTime(1.5, now); oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-    
+
     const bufferSize = audioCtx.sampleRate * 0.1;
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -229,50 +252,51 @@
     const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
     const noiseFilter = audioCtx.createBiquadFilter(); noiseFilter.type = 'bandpass'; noiseFilter.frequency.setValueAtTime(1000, now); noiseFilter.frequency.exponentialRampToValueAtTime(200, now + 0.1);
     const noiseGain = audioCtx.createGain(); noiseGain.gain.setValueAtTime(1.0, now); noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-    
+
     osc.connect(oscGain); oscGain.connect(masterGain); noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(masterGain);
     osc.start(now); osc.stop(now + 0.2); noise.start(now); noise.stop(now + 0.1);
-    
+
     const rearX = car.x - Math.cos(car.angle) * (car.width/2); const rearY = car.y - Math.sin(car.angle) * (car.height/2);
     for(let i=0; i<15; i++) { particles.push({ x: rearX + (Math.random() - 0.5) * 20, y: rearY + (Math.random() - 0.5) * 20, vx: -Math.cos(car.angle) * 8 + (Math.random() - 0.5) * 6, vy: -Math.sin(car.angle) * 8 + (Math.random() - 0.5) * 6, life: 1.0, size: 10 + Math.random() * 15, color: Math.random() > 0.5 ? '#ff5500' : '#ffaa00' }); }
   }
 
   // ==========================================
-  // КАРТА НОВОГО БЫТА (ИСПРАВЛЕННАЯ)
+  // КАРТА НОВОГО БЫТА
   // ==========================================
-  const WORLD_SIZE = 10000; 
-  const ROAD_WIDTH = 300; 
-  const SMALL_ROAD_WIDTH = 150; 
+  const WORLD_SIZE = 10000;
+  const ROAD_WIDTH = 300;
+  const SMALL_ROAD_WIDTH = 150;
 
   const roadSegments = [
-    // Молодежная ул. (Главная вертикальная)
     { x1: 7000, y1: 0, x2: 7000, y2: 10000, w: ROAD_WIDTH },
-    // Новая ул. (Главная горизонтальная)
     { x1: 0, y1: 5000, x2: 10000, y2: 5000, w: ROAD_WIDTH },
-    
-    // ул. Нати (Левая вертикаль)
     { x1: 3000, y1: 3000, x2: 3000, y2: 8500, w: SMALL_ROAD_WIDTH },
-    
-    // Зеленая ул. (Верхняя горизонталь)
     { x1: 1000, y1: 2000, x2: 7000, y2: 2000, w: SMALL_ROAD_WIDTH },
-    
-    // Кварталы справа от Молодежной
-    { x1: 7000, y1: 3000, x2: 9500, y2: 3000, w: SMALL_ROAD_WIDTH }, 
-    { x1: 7000, y1: 4000, x2: 9500, y2: 4000, w: SMALL_ROAD_WIDTH }, 
-    { x1: 7000, y1: 4500, x2: 9500, y2: 4500, w: SMALL_ROAD_WIDTH }, 
-    
-    // Кварталы слева от Молодежной
+    { x1: 7000, y1: 3000, x2: 9500, y2: 3000, w: SMALL_ROAD_WIDTH },
+    { x1: 7000, y1: 4000, x2: 9500, y2: 4000, w: SMALL_ROAD_WIDTH },
+    { x1: 7000, y1: 4500, x2: 9500, y2: 4500, w: SMALL_ROAD_WIDTH },
     { x1: 3000, y1: 3500, x2: 7000, y2: 3500, w: SMALL_ROAD_WIDTH },
-    { x1: 3000, y1: 6000, x2: 7000, y2: 6000, w: SMALL_ROAD_WIDTH }, 
-    
-    // Мост через пруды
+    { x1: 3000, y1: 6000, x2: 7000, y2: 6000, w: SMALL_ROAD_WIDTH },
     { x1: 0, y1: 6500, x2: 3000, y2: 6500, w: SMALL_ROAD_WIDTH }
   ];
 
-  // Натишинские пруды
   const waterAreas = [
-    { x: 0, y: 6500, w: 2500, h: 3500 } 
+    { x: 0, y: 6500, w: 2500, h: 3500 }
   ];
+
+  // ФИКС 1: предгенерируем "блики" на воде один раз, чтобы не мерцали и не появлялись на суше
+  waterAreas.forEach(w => {
+    w.sparkles = [];
+    const count = Math.max(40, Math.floor(w.w * w.h / 100000));
+    for (let i = 0; i < count; i++) {
+      w.sparkles.push({
+        x: w.x + Math.random() * w.w,
+        y: w.y + Math.random() * w.h,
+        w: 80 + Math.random() * 100,
+        h: 6 + Math.random() * 8
+      });
+    }
+  });
 
   function distToSegmentSq(px, py, x1, y1, x2, y2) {
     let l2 = (x2 - x1)**2 + (y2 - y1)**2;
@@ -299,27 +323,26 @@
     return false;
   }
 
-  // СПАВН НА ПЕРЕКРЕСТКЕ (Гарантированно свободно)
   let gameState = { inCar: false, activePanel: null };
   let stats = { money: 2000, mood: 50 };
   let mission = { active: false, destX: 0, destY: 0 };
 
   const player = { x: 6800, y: 5200, angle: -Math.PI/2, speed: 0, walkSpeed: 1.0, sprintSpeed: 2.0, accel: 0.08, friction: 0.85, turnSpeed: 0.15, color: '#3498db', name: "Равиль", walkCycle: 0, stamina: 100, maxStamina: 100, isSprinting: false, radius: 18, lastStepTrigger: 0 };
   const egor = { x: 6700, y: 5100, speed: 1.5, color: '#e74c3c', name: "Егор", state: 'idle', walkCycle: 0, angle: 0, radius: 18 };
-  
-  const car = { 
-    x: 7200, y: 5200, angle: -Math.PI/2, vx: 0, vy: 0, speed: 0, 
-    maxSpeed: 22, accel: 0.22, turnSpeed: 0.05, grip: 0.15, drag: 0.97, 
-    width: 150, height: 75, color: '#0a0a0a', isEngineOn: false, lastGear: 0, 
-    fuel: 50, maxFuel: 50, consumption: 0.0001 
+
+  const car = {
+    x: 7200, y: 5200, angle: -Math.PI/2, vx: 0, vy: 0, speed: 0,
+    maxSpeed: 22, accel: 0.22, turnSpeed: 0.05, grip: 0.15, drag: 0.97,
+    width: 150, height: 75, color: '#0a0a0a', isEngineOn: false, lastGear: 0,
+    fuel: 50, maxFuel: 50, consumption: 0.0001
   };
-  
+
   const camera = { x: 0, y: 0 };
   const keys = {};
 
   const trees = [];
   const houses = [];
-  
+
   const shops = [
     { id: 'coffee', x: 6800, y: 4500, w: 200, h: 150, name: "Пятерочка", color: "#e74c3c", type: 'food', items: [{ name: "Еда", price: 150, mood: 15 }] },
     { id: 'shawarma', x: 7300, y: 5300, w: 200, h: 150, name: "Шаурма у Ноны", color: "#d35400", type: 'food', items: [{ name: "Шаурма", price: 300, mood: 30 }] },
@@ -327,55 +350,44 @@
     { id: 'garage', x: 3200, y: 6200, w: 250, h: 200, name: "Автосервис", color: "#7f8c8d", type: 'garage' }
   ];
 
-  // --- ФИКС ГЕНЕРАЦИИ ---
   function initWorld() {
-    // 1. Генерация домов
     for (let x = 1000; x < WORLD_SIZE; x += 300) {
         for (let y = 1000; y < WORLD_SIZE; y += 300) {
-            
-            // Не спавним возле спавна игрока (радиус 400)
             if (Math.hypot(x - player.x, y - player.y) < 400) continue;
             if (Math.hypot(x - car.x, y - car.y) < 400) continue;
-
-            // Не спавним на дорогах, в воде и лесах
             if (isOnRoad(x, y, 80) || isInWater(x, y)) continue;
-            
-            // Лесопарк справа
+
             if (x > 7500 && y < 2500) {
                 if(Math.random() > 0.1) trees.push({ x, y, r: 30 + Math.random()*20 });
                 continue;
             }
-            // Парк слева внизу
             if (x < 3000 && y > 6000) {
                 if(Math.random() > 0.2) trees.push({ x, y, r: 30 + Math.random()*20 });
                 continue;
             }
-            
-            // Проверка на пересечение с магазинами
+
             let overlap = false;
             for(let s of shops) { if (x < s.x + s.w + 50 && x + 120 > s.x - 50 && y < s.y + s.h + 50 && y + 120 > s.y - 50) overlap = true; }
-            
+
             if (!overlap) {
                 let hx = x + Math.random() * 50;
                 let hy = y + Math.random() * 50;
                 let hw = 80 + Math.random() * 60;
                 let hh = 80 + Math.random() * 60;
-                
-                // Дополнительная проверка на дороги для самого дома
+
                 if (!isOnRoad(hx, hy, 40) && !isOnRoad(hx+hw, hy, 40) && !isOnRoad(hx, hy+hh, 40) && !isOnRoad(hx+hw, hy+hh, 40)) {
                     houses.push({ x: hx, y: hy, w: hw, h: hh, color: `hsl(${Math.random()*360}, 10%, 40%)` });
                 }
             }
         }
     }
-    
-    // 2. Заполняем деревьями
+
     for(let i=0; i<15000; i++) {
         let tx = Math.random() * WORLD_SIZE;
         let ty = Math.random() * WORLD_SIZE;
         if (!isOnRoad(tx, ty, 30) && !isInWater(tx, ty)) {
-            if (Math.hypot(tx - player.x, ty - player.y) < 300) continue; // Не спавним на игроке
-            
+            if (Math.hypot(tx - player.x, ty - player.y) < 300) continue;
+
             let onHouse = false;
             for(let h of houses) { if(tx > h.x - 20 && tx < h.x + h.w + 20 && ty > h.y - 20 && ty < h.y + h.h + 20) { onHouse = true; break; } }
             if(!onHouse) trees.push({ x: tx, y: ty, r: 30 + Math.random()*20 });
@@ -407,25 +419,26 @@
     const p = document.getElementById('settings-panel'); p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
   }
 
-  function updateHUD() {
+  // ФИКС 3: единицы топлива — теперь везде километры
+  function updateHUD(timeData) {
     document.getElementById('hud-money').textContent = Math.floor(stats.money);
     document.getElementById('hud-mood').textContent = stats.mood;
     document.getElementById('hud-mission').style.display = mission.active ? 'block' : 'none';
     document.getElementById('stamina-bar').style.width = (player.stamina / player.maxStamina * 100) + '%';
     document.getElementById('stamina-bar').style.background = player.stamina < 30 ? '#e74c3c' : '#e67e22';
-    
+
     document.getElementById('fuel-bar-container').style.display = gameState.inCar ? 'block' : 'none';
     document.getElementById('fuel-label').style.display = gameState.inCar ? 'flex' : 'none';
     document.getElementById('fuel-range').style.display = gameState.inCar ? 'block' : 'none';
-    
+
     if (gameState.inCar) {
       document.getElementById('fuel-bar').style.width = (car.fuel / car.maxFuel * 100) + '%';
       document.getElementById('fuel-bar').style.background = car.fuel < 10 ? '#e74c3c' : '#3498db';
       document.getElementById('fuel-text').textContent = `${car.fuel.toFixed(1)} / ${car.maxFuel} Л`;
-      document.getElementById('fuel-range').textContent = `Хватит на ~${Math.floor(car.fuel / car.consumption * 10)} метров`;
+      const rangeKm = Math.floor(car.fuel / car.consumption * 10 / 1000);
+      document.getElementById('fuel-range').textContent = `Хватит на ~${rangeKm} км`;
     }
-    
-    let timeData = getTimeData();
+
     document.getElementById('clock').textContent = timeData.timeString;
   }
 
@@ -435,7 +448,7 @@
     if (car.isEngineOn) {
       startEngineSound();
       if (!bgMusic.muted) bgMusic.play().catch(e => {});
-      fuelAlertShown = false; 
+      fuelAlertShown = false;
     } else {
       stopEngineSound(); bgMusic.pause();
     }
@@ -445,16 +458,16 @@
     car.x = 7200; car.y = 5200; car.vx = 0; car.vy = 0; car.angle = -Math.PI/2; car.isEngineOn = false;
     player.x = 6800; player.y = 5200; gameState.inCar = false;
     if (egor.state === 'inCar') { egor.x = 6700; egor.y = 5100; egor.state = 'idle'; mission.active = false; }
-    stopEngineSound(); bgMusic.pause();
+    stopEngineSound(); bgMusic.pause(); bgMusic.currentTime = 0;
   }
 
   function interact() {
     if (gameState.activePanel) return;
-    
+
     if (gameState.inCar) {
       let distToGas = Math.hypot(car.x - (shops[2].x + shops[2].w/2), car.y - (shops[2].y + shops[2].h/2));
       let distToGarage = Math.hypot(car.x - (shops[3].x + shops[3].w/2), car.y - (shops[3].y + shops[3].h/2));
-      
+
       if (distToGas < 250) { openRefuelMenu(); return; }
       if (distToGarage < 250) { openGarageMenu(); return; }
 
@@ -464,11 +477,18 @@
 
     if (!gameState.inCar) {
       for(let shop of shops) {
-        if (shop.type === 'gas' || shop.type === 'garage') continue; 
+        if (shop.type === 'gas' || shop.type === 'garage') continue;
         if (player.x > shop.x - 50 && player.x < shop.x + shop.w + 50 && player.y > shop.y - 50 && player.y < shop.y + shop.h + 50) { openShop(shop); return; }
       }
       const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
-      if (distToCar < 160) { gameState.inCar = true; return; }
+      if (distToCar < 160) {
+        // ФИКС 11: сбрасываем спринт и скорость при посадке в машину
+        gameState.inCar = true;
+        player.isSprinting = false;
+        player.speed = 0;
+        player.walkCycle = 0;
+        return;
+      }
       const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
       if (distToEgor < 80) {
         openDialogue("Егор: — Ну чего тебе?", [
@@ -479,14 +499,61 @@
     }
   }
 
+  // ФИКС 4+5: безопасная высадка игрока и Егора
+  function isPositionFree(x, y, radius, ignoreEgor = false) {
+    for (let s of shops) {
+      let closestX = Math.max(s.x, Math.min(x, s.x + s.w));
+      let closestY = Math.max(s.y, Math.min(y, s.y + s.h));
+      if ((x - closestX)**2 + (y - closestY)**2 < radius**2) return false;
+    }
+    for (let s of houses) {
+      if (Math.abs(s.x - x) > 300 || Math.abs(s.y - y) > 300) continue;
+      let closestX = Math.max(s.x, Math.min(x, s.x + s.w));
+      let closestY = Math.max(s.y, Math.min(y, s.y + s.h));
+      if ((x - closestX)**2 + (y - closestY)**2 < radius**2) return false;
+    }
+    if (isInWater(x, y)) return false;
+    if (isCircleHittingCar(x, y, radius)) return false;
+    if (!ignoreEgor && isHittingEgor(x, y, radius)) return false;
+    return true;
+  }
+
+  function findSafePosition(cx, cy, angle, radius, distance, ignoreEgor) {
+    // Пробуем несколько относительных углов: сбоку, сзади, спереди
+    const offsets = [Math.PI/2, -Math.PI/2, Math.PI, 0, Math.PI/4, -Math.PI/4, 3*Math.PI/4, -3*Math.PI/4];
+    for (let off of offsets) {
+      let px = cx + Math.cos(angle + off) * distance;
+      let py = cy + Math.sin(angle + off) * distance;
+      if (isPositionFree(px, py, radius, ignoreEgor)) return { x: px, y: py };
+    }
+    // Фолбэк: чуть увеличим дистанцию
+    for (let off of offsets) {
+      let px = cx + Math.cos(angle + off) * (distance * 1.8);
+      let py = cy + Math.sin(angle + off) * (distance * 1.8);
+      if (isPositionFree(px, py, radius, ignoreEgor)) return { x: px, y: py };
+    }
+    // Последний фолбэк — старое поведение
+    return { x: cx + Math.cos(angle + Math.PI/2) * distance, y: cy + Math.sin(angle + Math.PI/2) * distance };
+  }
+
   function exitCarOrEject() {
     if (gameState.activePanel) return;
     if (gameState.inCar) {
-      if (egor.state === 'inCar') { egor.state = 'idle'; egor.x = car.x + 80; egor.y = car.y + 80; mission.active = false; }
+      if (egor.state === 'inCar') {
+        // Сначала высаживаем Егора
+        const pos = findSafePosition(car.x, car.y, car.angle, egor.radius, 100, true);
+        egor.x = pos.x; egor.y = pos.y;
+        egor.state = 'idle';
+        mission.active = false;
+      }
       else {
         gameState.inCar = false; car.speed = 0; car.vx = 0; car.vy = 0; car.isEngineOn = false;
         stopEngineSound(); bgMusic.pause();
-        player.x = car.x + Math.cos(car.angle + Math.PI/2) * 90; player.y = car.y + Math.sin(car.angle + Math.PI/2) * 90;
+        // ФИКС 13: сбрасываем трек на начало
+        bgMusic.currentTime = 0;
+
+        const pos = findSafePosition(car.x, car.y, car.angle, player.radius, 110, false);
+        player.x = pos.x; player.y = pos.y;
       }
     }
   }
@@ -494,7 +561,7 @@
   // ==========================================
   // ФИЗИКА И КОЛЛИЗИИ
   // ==========================================
-  
+
   function getCarCircles(cx, cy) {
     return [
       { x: cx + Math.cos(car.angle) * 45, y: cy + Math.sin(car.angle) * 45, r: 35 },
@@ -563,7 +630,7 @@
     if (egor.state === 'walking') {
       let doorX = car.x + Math.cos(car.angle + Math.PI/2) * 60; let doorY = car.y + Math.sin(car.angle + Math.PI/2) * 60;
       let dx = doorX - egor.x; let dy = doorY - egor.y; let dist = Math.hypot(dx, dy);
-      
+
       if (dist > 20) {
         let stepX = (dx / dist) * egor.speed; let stepY = (dy / dist) * egor.speed;
         egor.x += stepX; if (egorHitsCar()) egor.x -= stepX;
@@ -571,14 +638,16 @@
         egor.walkCycle += egor.speed * 0.15; egor.angle = Math.atan2(dy, dx);
       } else {
         egor.state = 'inCar'; mission.active = true;
+        // ФИКС 6: ограничиваем число попыток поиска точки миссии
         let safeDist = false;
-        while(!safeDist) {
+        for (let attempt = 0; attempt < 200; attempt++) {
           mission.destX = Math.random() * WORLD_SIZE;
           mission.destY = Math.random() * WORLD_SIZE;
           if (!isInWater(mission.destX, mission.destY) && !isOnRoad(mission.destX, mission.destY)) {
-              if (Math.hypot(mission.destX - car.x, mission.destY - car.y) > 2000) safeDist = true; 
+              if (Math.hypot(mission.destX - car.x, mission.destY - car.y) > 2000) { safeDist = true; break; }
           }
         }
+        // Если не нашли за 200 попыток — оставляем последнюю (она всё равно валидна по координатам)
       }
     } else { egor.walkCycle = 0; }
 
@@ -605,7 +674,7 @@
 
         car.vx += Math.cos(car.angle) * engineForce; car.vy += Math.sin(car.angle) * engineForce;
         car.speed = car.vx * Math.cos(car.angle) + car.vy * Math.sin(car.angle);
-        
+
         if (Math.abs(car.speed) > 0.5) {
           let turnFactor = Math.min(1, Math.abs(car.speed) / 15); let currentTurn = car.turnSpeed * turnFactor;
           if (isLeft()) car.angle -= currentTurn * (car.speed > 0 ? 1 : -1);
@@ -617,7 +686,7 @@
         let vForward = car.vx * forwardX + car.vy * forwardY; let vLateral = car.vx * rightX + car.vy * rightY;
 
         if (Math.abs(vLateral) > 2 && Math.abs(car.speed) > 3) skidmarks.push({ x: car.x, y: car.y, angle: car.angle, life: 1 });
-        vLateral *= car.grip; vForward *= 0.99; 
+        vLateral *= car.grip; vForward *= 0.99;
         car.vx = vForward * forwardX + vLateral * rightX; car.vy = vForward * forwardY + vLateral * rightY;
         car.vx *= car.drag; car.vy *= car.drag;
 
@@ -630,12 +699,12 @@
 
         let oldX = car.x; car.x += car.vx;
         if (checkCarEnvironmentCollision(car.x, car.y)) {
-            car.x = oldX; car.vx *= -0.2; 
+            car.x = oldX; car.vx *= -0.2;
         }
 
         let oldY = car.y; car.y += car.vy;
         if (checkCarEnvironmentCollision(car.x, car.y)) {
-            car.y = oldY; car.vy *= -0.2; 
+            car.y = oldY; car.vy *= -0.2;
         }
 
         updateEngineSound(currentSpeed);
@@ -646,13 +715,13 @@
 
       let dx = 0, dy = 0;
       if (isUp()) dy -= 1; if (isDown()) dy += 1; if (isLeft()) dx -= 1; if (isRight()) dx += 1;
-      
+
       if (dx !== 0 || dy !== 0) {
         const len = Math.hypot(dx, dy); dx /= len; dy /= len;
         let targetAngle = Math.atan2(dy, dx); let angleDiff = targetAngle - player.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2; while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
         if (Math.abs(angleDiff) > 0.05) player.angle += angleDiff * player.turnSpeed; else player.angle = targetAngle;
-        
+
         if (keys['shift'] && player.stamina > 0) {
           player.isSprinting = true; player.stamina -= 0.8; player.speed += player.accel;
           if (player.speed > player.sprintSpeed) player.speed = player.sprintSpeed;
@@ -676,7 +745,7 @@
 
       let nextX = player.x + Math.cos(player.angle) * player.speed; let nextY = player.y + Math.sin(player.angle) * player.speed;
       let hitX = false; player.x = nextX;
-      
+
       for (let s of shops) {
         let closestX = Math.max(s.x, Math.min(player.x, s.x + s.w)); let closestY = Math.max(s.y, Math.min(player.y, s.y + s.h));
         if ((player.x - closestX)**2 + (player.y - closestY)**2 < player.radius**2) hitX = true;
@@ -729,11 +798,11 @@
     if (gameState.inCar) {
       let distToGas = Math.hypot(car.x - (shops[2].x + shops[2].w/2), car.y - (shops[2].y + shops[2].h/2));
       let distToGarage = Math.hypot(car.x - (shops[3].x + shops[3].w/2), car.y - (shops[3].y + shops[3].h/2));
-      
+
       if (distToGas < 250) text = "Нажмите [E] чтобы заправиться";
       else if (distToGarage < 250) text = "Нажмите [E] чтобы заехать в автосервис";
       else if (!car.isEngineOn && car.fuel > 0) text = "Нажмите [Q] чтобы завести двигатель";
-      else if (car.fuel <= 0) text = "Бензин закончился!";
+      else if (car.fuel <= 0) text = "Бензин закончился! [F] — выйти";
       else {
         const dist = Math.hypot(car.x - egor.x, car.y - egor.y);
         if (egor.state === 'idle' && dist < 250) text = "Нажмите [E] чтобы позвать Егора";
@@ -753,13 +822,13 @@
   }
 
   function drawHuman(x, y, color, name, walkCycle, isRavil, angle) {
-    ctx.save(); ctx.translate(x, y); 
+    ctx.save(); ctx.translate(x, y);
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0, 0, 18, 9, 0, 0, Math.PI*2); ctx.fill();
     let safeAngle = isNaN(angle) ? -Math.PI/2 : angle; let a = (safeAngle + Math.PI * 2) % (Math.PI * 2); let angleDeg = a * 180 / Math.PI;
-    let dir = 3; if (angleDeg >= 45 && angleDeg < 135) dir = 0; else if (angleDeg >= 135 && angleDeg < 225) dir = 1; else if (angleDeg >= 225 && angleDeg < 315) dir = 2; 
+    let dir = 3; if (angleDeg >= 45 && angleDeg < 135) dir = 0; else if (angleDeg >= 135 && angleDeg < 225) dir = 1; else if (angleDeg >= 225 && angleDeg < 315) dir = 2;
     let swing = Math.sin(walkCycle) * 0.6;
 
-    ctx.fillStyle = '#2c3e50'; 
+    ctx.fillStyle = '#2c3e50';
     if (dir === 0) {
       ctx.save(); ctx.translate(-6, -8); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
       ctx.save(); ctx.translate(6, -8); ctx.rotate(-swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
@@ -768,8 +837,8 @@
       ctx.save(); ctx.translate(6, -8); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
     } else { ctx.save(); ctx.translate(0, -6); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-7, 0, 14, 12, 3); ctx.fill(); ctx.restore(); }
 
-    ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(-12, -34, 24, 26, 6); ctx.fill(); 
-    ctx.fillStyle = '#fcd0b3'; 
+    ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(-12, -34, 24, 26, 6); ctx.fill();
+    ctx.fillStyle = '#fcd0b3';
     if (dir === 0 || dir === 2) {
       ctx.save(); ctx.translate(-14, -28); ctx.rotate(-swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore();
       ctx.save(); ctx.translate(14, -28); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore();
@@ -813,24 +882,24 @@
     ctx.beginPath(); ctx.moveTo(-40, car.height/2 - 8); ctx.lineTo(40, car.height/2 - 8); ctx.stroke();
 
     ctx.fillStyle = '#1a1a1a';
-    ctx.beginPath(); ctx.roundRect(-30, -25, 60, 20, 5); ctx.fill(); 
-    ctx.beginPath(); ctx.roundRect(-30, 5, 60, 20, 5); ctx.fill(); 
+    ctx.beginPath(); ctx.roundRect(-30, -25, 60, 20, 5); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-30, 5, 60, 20, 5); ctx.fill();
 
     if (gameState.inCar) { ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, -15, 8, 0, Math.PI*2); ctx.fill(); }
     if (egor.state === 'inCar') { ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, 15, 8, 0, Math.PI*2); ctx.fill(); }
 
-    ctx.fillStyle = 'rgba(10, 15, 20, 0.85)'; 
+    ctx.fillStyle = 'rgba(10, 15, 20, 0.85)';
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 + 12, 100, car.height - 24, 15); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.roundRect(-50, -car.height/2 + 15, 90, 10, 5); ctx.fill();
 
     if (car.isEngineOn) {
-      ctx.fillStyle = '#e0f7fa'; 
-      ctx.fillRect(car.width/2 - 3, -car.height/2 + 8, 5, 12); ctx.fillRect(car.width/2 - 3, car.height/2 - 20, 5, 12); 
+      ctx.fillStyle = '#e0f7fa';
+      ctx.fillRect(car.width/2 - 3, -car.height/2 + 8, 5, 12); ctx.fillRect(car.width/2 - 3, car.height/2 - 20, 5, 12);
       const gradFront = ctx.createLinearGradient(car.width/2, 0, car.width/2 + 350, 0);
       gradFront.addColorStop(0, 'rgba(224, 247, 250, 0.5)'); gradFront.addColorStop(1, 'rgba(224, 247, 250, 0)');
       ctx.fillStyle = gradFront; ctx.beginPath(); ctx.moveTo(car.width/2, -car.height/2 + 14); ctx.lineTo(car.width/2 + 350, -180); ctx.lineTo(car.width/2 + 350, 180); ctx.lineTo(car.width/2, car.height/2 - 14); ctx.fill();
 
-      ctx.fillStyle = '#ff0000'; ctx.fillRect(-car.width/2 - 2, -car.height/2 + 8, 5, 12); ctx.fillRect(-car.width/2 - 2, car.height/2 - 20, 5, 12); 
+      ctx.fillStyle = '#ff0000'; ctx.fillRect(-car.width/2 - 2, -car.height/2 + 8, 5, 12); ctx.fillRect(-car.width/2 - 2, car.height/2 - 20, 5, 12);
       const gradBack = ctx.createLinearGradient(-car.width/2, 0, -car.width/2 - 100, 0);
       gradBack.addColorStop(0, 'rgba(255, 0, 0, 0.3)'); gradBack.addColorStop(1, 'rgba(255, 0, 0, 0)');
       ctx.fillStyle = gradBack; ctx.beginPath(); ctx.moveTo(-car.width/2, -car.height/2 + 14); ctx.lineTo(-car.width/2 - 100, -50); ctx.lineTo(-car.width/2 - 100, 50); ctx.lineTo(-car.width/2, car.height/2 - 14); ctx.fill();
@@ -847,7 +916,7 @@
     ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0, 0, mapSize, mapSize);
     ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 2; ctx.strokeRect(0, 0, mapSize, mapSize);
     const scale = mapSize / WORLD_SIZE;
-    
+
     ctx.fillStyle = '#2980b9';
     waterAreas.forEach(w => ctx.fillRect(w.x * scale, w.y * scale, w.w * scale, w.h * scale));
 
@@ -859,28 +928,32 @@
         ctx.strokeStyle = '#555';
         ctx.stroke();
     }
-    
+
     shops.forEach(s => { ctx.fillStyle = s.color; ctx.fillRect(s.x * scale - 3, s.y * scale - 3, Math.max(6, s.w * scale), Math.max(6, s.h * scale)); });
-    
+
     if (mission.active) { ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(mission.destX * scale, mission.destY * scale, 4, 0, Math.PI*2); ctx.fill(); }
     if (egor.state !== 'inCar') { ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(egor.x * scale, egor.y * scale, 3, 0, Math.PI*2); ctx.fill(); }
     ctx.fillStyle = '#3498db'; ctx.beginPath(); ctx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI*2); ctx.fill();
     ctx.restore();
   }
 
-  function draw() {
+  function draw(timeData) {
     ctx.fillStyle = '#2d5a27'; ctx.fillRect(0, 0, W, H);
     ctx.save(); ctx.translate(-camera.x, -camera.y);
 
-    // Вода
-    ctx.fillStyle = '#1a5276'; 
-    waterAreas.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    for(let i=0; i<200; i++) {
-        ctx.fillRect(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE, 100, 10);
-    }
+    // ФИКС 1: вода + блики только внутри воды, без мерцания
+    waterAreas.forEach(w => {
+      ctx.fillStyle = '#1a5276';
+      ctx.fillRect(w.x, w.y, w.w, w.h);
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      for (let s of w.sparkles) {
+        if (s.x > camera.x - 100 && s.x < camera.x + W + 100 &&
+            s.y > camera.y - 100 && s.y < camera.y + H + 100) {
+          ctx.fillRect(s.x, s.y, s.w, s.h);
+        }
+      }
+    });
 
-    // Дороги
     for (let r of roadSegments) {
         ctx.beginPath();
         ctx.moveTo(r.x1, r.y1);
@@ -902,7 +975,6 @@
         }
     }
 
-    // Дома
     houses.forEach(h => {
       if (h.x > camera.x - 300 && h.x < camera.x + W + 300 && h.y > camera.y - 300 && h.y < camera.y + H + 300) {
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(h.x + 10, h.y + 10, h.w, h.h);
@@ -929,7 +1001,7 @@
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(s.x + 15, s.y + 15, s.w, s.h);
         ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h);
         ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(s.x - 10, s.y - 10, s.w + 20, 40);
-        
+
         if (s.type === 'gas') {
             ctx.fillStyle = '#fff'; ctx.fillRect(s.x + 20, s.y + 60, 30, 40); ctx.fillRect(s.x + s.w - 50, s.y + 60, 30, 40);
             ctx.fillStyle = '#e74c3c'; ctx.fillRect(s.x + 25, s.y + 65, 20, 10); ctx.fillRect(s.x + s.w - 45, s.y + 65, 20, 10);
@@ -973,7 +1045,6 @@
 
     ctx.restore();
 
-    let timeData = getTimeData();
     if (timeData.alpha > 0) {
         ctx.fillStyle = `rgba(10, 15, 30, ${timeData.alpha})`;
         ctx.fillRect(0, 0, W, H);
@@ -982,7 +1053,14 @@
     drawMinimap();
   }
 
-  function gameLoop() { update(); draw(); updateHUD(); requestAnimationFrame(gameLoop); }
+  // ФИКС 8: кэшируем timeData — 1 вызов getTimeData() на кадр
+  function gameLoop() {
+    update();
+    const timeData = getTimeData();
+    draw(timeData);
+    updateHUD(timeData);
+    requestAnimationFrame(gameLoop);
+  }
 
   function openDialogue(title, choices) {
     gameState.activePanel = 'dialogue'; document.getElementById('dialogue-panel').style.display = 'flex';
@@ -999,7 +1077,7 @@
     gameState.activePanel = 'shop'; document.getElementById('shop-panel').style.display = 'flex';
     document.getElementById('shop-title').textContent = shop.name;
     const container = document.getElementById('shop-items'); container.innerHTML = '';
-    
+
     if (shop.type === 'food') {
         shop.items.forEach(item => {
           const btn = document.createElement('button'); btn.className = 'btn';
@@ -1008,19 +1086,19 @@
             if (stats.money >= item.price) {
               stats.money -= item.price; stats.mood += item.mood;
               if (stats.mood > 100) stats.mood = 100;
-              updateHUD(); alert(`Вы купили: ${item.name}.`);
+              updateHUD(getTimeData()); alert(`Вы купили: ${item.name}.`);
             } else { alert("Недостаточно денег!"); }
           };
           container.appendChild(btn);
         });
     }
   }
-  
+
   function openRefuelMenu() {
     gameState.activePanel = 'shop'; document.getElementById('shop-panel').style.display = 'flex';
     document.getElementById('shop-title').textContent = "Заправка (60 ₽/л)";
     const container = document.getElementById('shop-items'); container.innerHTML = '';
-    
+
     const options = [
         { name: "Залить 10 литров", liters: 10 },
         { name: "Залить 20 литров", liters: 20 },
@@ -1036,7 +1114,7 @@
             btn.disabled = true; container.appendChild(btn);
             return;
         }
-        
+
         let price = Math.floor(actualLiters * 60);
         let btn = document.createElement('button'); btn.className = 'btn';
         btn.innerHTML = `<span>${opt.name} (${actualLiters.toFixed(1)} л)</span> <span class="btn-price">${price} ₽</span>`;
@@ -1044,33 +1122,33 @@
             if (stats.money >= price) {
                 stats.money -= price;
                 car.fuel += actualLiters;
-                updateHUD(); alert(`Заправлено ${actualLiters.toFixed(1)} л.`);
+                updateHUD(getTimeData()); alert(`Заправлено ${actualLiters.toFixed(1)} л.`);
                 closeShop();
             } else { alert("Недостаточно денег!"); }
         };
         container.appendChild(btn);
     });
   }
-  
+
   function openGarageMenu() {
     gameState.activePanel = 'garage';
     document.getElementById('garage-panel').style.display = 'flex';
     const container = document.getElementById('garage-items');
     container.innerHTML = '';
-    
+
     const colors = [
         {name: "Черный (Сток)", val: "#0a0a0a", price: 0},
         {name: "Синий", val: "#2980b9", price: 500},
         {name: "Красный", val: "#c0392b", price: 500},
         {name: "Белый", val: "#ecf0f1", price: 500}
     ];
-    
+
     let colorDiv = document.createElement('div');
     colorDiv.innerHTML = `<div style="color:#aaa; margin-bottom: 5px;">Цвет кузова:</div>`;
     colors.forEach(c => {
         let btn = document.createElement('button'); btn.className = 'btn';
         btn.innerHTML = `<span>Покрасить в ${c.name}</span> <span class="btn-price">${c.price} ₽</span>`;
-        btn.onclick = () => { if(stats.money >= c.price) { stats.money -= c.price; car.color = c.val; updateHUD(); } else { alert("Недостаточно денег!"); } };
+        btn.onclick = () => { if(stats.money >= c.price) { stats.money -= c.price; car.color = c.val; updateHUD(getTimeData()); } else { alert("Недостаточно денег!"); } };
         colorDiv.appendChild(btn);
     });
     container.appendChild(colorDiv);
@@ -1084,7 +1162,7 @@
     let engineDiv = document.createElement('div');
     engineDiv.style.marginTop = "15px";
     engineDiv.innerHTML = `<div style="color:#aaa; margin-bottom: 5px;">Характеристики двигателя:</div>`;
-    
+
     engines.forEach(e => {
         let btn = document.createElement('button'); btn.className = 'btn';
         btn.innerHTML = `
@@ -1093,26 +1171,26 @@
                 <span style="font-size:12px; color:#888;">Макс. скорость: ${e.speed * 10} км/ч</span>
                 <span style="font-size:12px; color:#888;">Разгон: ${(e.accel*100).toFixed(0)} ед.</span>
                 <span style="font-size:12px; color:#888;">Управляемость: ${(e.turn*1000).toFixed(0)} ед.</span>
-            </div> 
+            </div>
             <span class="btn-price">${e.price} ₽</span>`;
-        btn.onclick = () => { 
-            if(stats.money >= e.price) { 
-                stats.money -= e.price; 
+        btn.onclick = () => {
+            if(stats.money >= e.price) {
+                stats.money -= e.price;
                 car.maxSpeed = e.speed;
                 car.accel = e.accel;
                 car.turnSpeed = e.turn;
-                updateHUD(); 
+                updateHUD(getTimeData());
                 alert("Двигатель установлен!");
-            } else { alert("Недостаточно денег!"); } 
+            } else { alert("Недостаточно денег!"); }
         };
         engineDiv.appendChild(btn);
     });
     container.appendChild(engineDiv);
   }
 
-  function closeShop() { 
-    gameState.activePanel = null; 
-    document.getElementById('shop-panel').style.display = 'none'; 
+  function closeShop() {
+    gameState.activePanel = null;
+    document.getElementById('shop-panel').style.display = 'none';
     document.getElementById('garage-panel').style.display = 'none';
   }
 
