@@ -3,62 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>2D Adventure - BMW</title>
+<title>Adventure 2D - Open World</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { 
-    width: 100%; height: 100%; overflow: hidden; 
-    background: #111; font-family: system-ui, sans-serif; 
-  }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: system-ui, sans-serif; }
+  canvas { display: block; width: 100vw; height: 100vh; background: #2d5a27; }
+  #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   
-  canvas { 
-    display: block; width: 100vw; height: 100vh; 
-    background: #1a1a1a;
-  }
+  /* Верхний HUD */
+  #hud { position: absolute; top: 20px; left: 20px; color: #fff; font-weight: bold; font-size: 18px; text-shadow: 0 2px 4px #000; pointer-events: none; }
+  #hud div { margin-bottom: 5px; }
+  .stat-value { color: #f1c40f; }
 
-  /* UI поверх игры */
-  #ui-layer {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
-  }
-
-  /* Мобильные кнопки управления */
-  #mobile-controls {
-    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-    display: flex; gap: 15px; pointer-events: auto;
-  }
-  .ctrl-group {
-    display: flex; flex-direction: column; gap: 5px; align-items: center;
-  }
+  /* Кнопки управления */
+  #controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; pointer-events: auto; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 5px; align-items: center; }
   .ctrl-row { display: flex; gap: 5px; }
-  
-  .ctrl-btn {
-    width: 60px; height: 60px; border-radius: 12px;
-    background: rgba(51, 51, 51, 0.7); color: #fff; border: 1px solid rgba(255,255,255,0.2);
-    font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-    user-select: none; touch-action: manipulation; backdrop-filter: blur(4px);
-  }
-  .ctrl-btn:active { background: rgba(100, 100, 100, 0.9); }
-  .ctrl-action {
-    background: rgba(241, 196, 15, 0.8); color: #000; font-weight: bold; font-size: 14px; width: 80px; height: 60px;
-  }
-  .ctrl-action:active { background: rgba(241, 196, 15, 1); }
+  .ctrl-btn { width: 60px; height: 60px; border-radius: 12px; background: rgba(0,0,0,0.6); color: #fff; border: 1px solid rgba(255,255,255,0.2); font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; touch-action: manipulation; backdrop-filter: blur(4px); }
+  .ctrl-btn:active { background: rgba(255,255,255,0.3); }
+  .action-btn { background: rgba(241, 196, 15, 0.8); color: #000; font-weight: bold; font-size: 14px; width: 90px; }
+  .eject-btn { background: rgba(231, 76, 60, 0.8); color: #fff; font-weight: bold; font-size: 14px; width: 90px; display: none; }
 
-  /* Интерфейс диалога */
-  #dialogue {
-    position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
-    width: 90%; max-width: 700px;
-    background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f;
-    border-radius: 10px; padding: 20px; color: #fff;
-    display: none; flex-direction: column; gap: 15px;
-    pointer-events: auto; z-index: 100;
-  }
-  #dialogue-text { font-size: 16px; line-height: 1.5; }
-  #dialogue-choices { display: flex; flex-direction: column; gap: 10px; }
-  .choice-btn {
-    background: #333; color: #fff; border: 1px solid #555; padding: 12px;
-    border-radius: 5px; cursor: pointer; text-align: left; transition: 0.2s; font-size: 14px;
-  }
-  .choice-btn:hover { background: #444; border-color: #fff; }
+  /* Окна интерфейса (Диалоги / Магазины) */
+  .panel { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 15px; pointer-events: auto; z-index: 100; }
+  .panel-title { font-size: 20px; color: #f1c40f; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+  .panel-text { font-size: 16px; line-height: 1.5; }
+  .panel-buttons { display: flex; flex-direction: column; gap: 10px; }
+  .btn { background: #333; color: #fff; border: 1px solid #555; padding: 12px; border-radius: 5px; cursor: pointer; text-align: left; transition: 0.2s; font-size: 14px; }
+  .btn:hover { background: #444; border-color: #fff; }
 </style>
 </head>
 <body>
@@ -66,8 +38,12 @@
 <canvas id="gameCanvas"></canvas>
 
 <div id="ui-layer">
-  <!-- Мобильные кнопки -->
-  <div id="mobile-controls">
+  <div id="hud">
+    <div>Деньги: <span class="stat-value" id="hud-money">1000</span> ₽</div>
+    <div>Настроение: <span class="stat-value" id="hud-mood">50</span>%</div>
+  </div>
+
+  <div id="controls">
     <div class="ctrl-group">
       <button class="ctrl-btn" ontouchstart="keys['w']=true" ontouchend="keys['w']=false" onmousedown="keys['w']=true" onmouseup="keys['w']=false" onmouseleave="keys['w']=false">↑</button>
       <button class="ctrl-btn" ontouchstart="keys['s']=true" ontouchend="keys['s']=false" onmousedown="keys['s']=true" onmouseup="keys['s']=false" onmouseleave="keys['s']=false">↓</button>
@@ -77,14 +53,21 @@
       <button class="ctrl-btn" ontouchstart="keys['d']=true" ontouchend="keys['d']=false" onmousedown="keys['d']=true" onmouseup="keys['d']=false" onmouseleave="keys['d']=false">→</button>
     </div>
     <div class="ctrl-group">
-      <button class="ctrl-btn ctrl-action" onclick="checkInteraction()">Действие</button>
+      <button class="ctrl-btn action-btn" onclick="interact()">Действие</button>
+      <button class="ctrl-btn eject-btn" id="eject-ui-btn" onclick="ejectEgor()">Высадить</button>
     </div>
   </div>
 
-  <!-- Диалог -->
-  <div id="dialogue">
-    <div id="dialogue-text"></div>
-    <div id="dialogue-choices"></div>
+  <div class="panel" id="dialogue-panel">
+    <div class="panel-title" id="dialogue-title">Диалог</div>
+    <div class="panel-text" id="dialogue-text"></div>
+    <div class="panel-buttons" id="dialogue-choices"></div>
+  </div>
+
+  <div class="panel" id="shop-panel">
+    <div class="panel-title" id="shop-title">Магазин</div>
+    <div class="panel-buttons" id="shop-items"></div>
+    <button class="btn" style="margin-top: 10px; text-align: center; border-color: #e74c3c;" onclick="closeShop()">Закрыть</button>
   </div>
 </div>
 
@@ -92,292 +75,331 @@
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   let W, H;
+  function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+  window.addEventListener('resize', resize); resize();
 
-  // Ресайз на весь экран
-  function resize() {
-    W = canvas.width = window.innerWidth;
-    H = canvas.height = window.innerHeight;
-  }
-  window.addEventListener('resize', resize);
-  resize();
+  const WORLD_SIZE = 5000; 
+  const ROAD_WIDTH = 400;
 
-  // ОГРОМНЫЙ МИР
-  const WORLD_SIZE = 10000; 
+  let gameState = { isDialogueOpen: false, inCar: false, activePanel: null };
+  let stats = { money: 1000, mood: 50 };
 
-  let gameState = { isDialogueOpen: false, inCar: false };
-
-  // Игрок
-  const player = { x: 5000, y: 5000, speed: 4, color: '#3498db', name: "Равиль" };
+  const player = { x: 2500, y: 2700, speed: 4, color: '#3498db', name: "Равиль" };
+  const egor = { x: 2400, y: 2600, speed: 3, color: '#e74c3c', name: "Егор", state: 'idle' }; // idle, walking, inCar
+  const car = { x: 2500, y: 2500, angle: -Math.PI/2, speed: 0, maxSpeed: 12, accel: 0.2, friction: 0.92, turnSpeed: 0.04, width: 100, height: 50, color: '#000' };
   
-  // Егор
-  const egor = { x: 4800, y: 4800, color: '#e74c3c', name: "Егор" };
-  
-  // Машина (с реалистичной физикой)
-  const car = { 
-    x: 5000, y: 5100, 
-    angle: -Math.PI / 2, // Смотрит вверх
-    speed: 0, 
-    maxSpeed: 12, 
-    accel: 0.2, 
-    friction: 0.92, // Трение
-    turnSpeed: 0.04,
-    width: 100, height: 50, color: '#000' 
-  };
-
-  // Камера
   const camera = { x: 0, y: 0 };
-
   const keys = {};
+
+  // Генерация окружения (деревья, фонари, магазины)
+  const trees = [];
+  const bushes = [];
+  const lights = [];
+  const shops = [
+    { x: 1500, y: 2000, w: 200, h: 150, name: "Кофейня", color: "#8e44ad", items: [{ name: "Кофе", price: 150, mood: 15 }] },
+    { x: 3500, y: 3000, w: 250, h: 200, name: "Шаурмичная", color: "#d35400", items: [{ name: "Шаурма", price: 300, mood: 30 }] }
+  ];
+
+  function initWorld() {
+    // Деревья (только вне дороги)
+    for(let i=0; i<300; i++) {
+      let tx = Math.random() * WORLD_SIZE;
+      let ty = Math.random() * WORLD_SIZE;
+      // Проверка, чтобы не спавнились на дороге
+      if (Math.abs(tx - WORLD_SIZE/2) > ROAD_WIDTH && Math.abs(ty - WORLD_SIZE/2) > ROAD_WIDTH) {
+        trees.push({ x: tx, y: ty, r: 30 + Math.random()*20 });
+      }
+    }
+    // Кусты
+    for(let i=0; i<200; i++) {
+      let bx = Math.random() * WORLD_SIZE;
+      let by = Math.random() * WORLD_SIZE;
+      if (Math.abs(bx - WORLD_SIZE/2) > ROAD_WIDTH && Math.abs(by - WORLD_SIZE/2) > ROAD_WIDTH) {
+        bushes.push({ x: bx, y: by, r: 15 + Math.random()*10 });
+      }
+    }
+    // Фонари вдоль дороги
+    for(let i=0; i<WORLD_SIZE; i+=400) {
+      lights.push({ x: WORLD_SIZE/2 - ROAD_WIDTH/2 + 50, y: i });
+      lights.push({ x: WORLD_SIZE/2 + ROAD_WIDTH/2 - 50, y: i });
+    }
+  }
+  initWorld();
 
   window.addEventListener('keydown', (e) => {
     keys[e.key.toLowerCase()] = true;
-    if (e.key === ' ' && !gameState.isDialogueOpen) { checkInteraction(); }
+    if (e.key.toLowerCase() === ' ' && !gameState.activePanel) interact();
+    if (e.key.toLowerCase() === 'e' && gameState.inCar) ejectEgor();
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault();
   });
   window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
-  // Привязка WASD и стрелок
   function isUp() { return keys['w'] || keys['arrowup']; }
   function isDown() { return keys['s'] || keys['arrowdown']; }
   function isLeft() { return keys['a'] || keys['arrowleft']; }
   function isRight() { return keys['d'] || keys['arrowright']; }
 
-  function checkInteraction() {
-    if (gameState.isDialogueOpen) return;
+  function updateHUD() {
+    document.getElementById('hud-money').textContent = stats.money;
+    document.getElementById('hud-mood').textContent = stats.mood;
+  }
 
-    const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
-    const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
+  function interact() {
+    if (gameState.activePanel) return;
 
     if (gameState.inCar) {
-      // Выход из машины
-      gameState.inCar = false;
-      // Отодвигаем игрока от машины
-      player.x = car.x + Math.cos(car.angle + Math.PI/2) * 50;
-      player.y = car.y + Math.sin(car.angle + Math.PI/2) * 50;
+      if (egor.state === 'idle') {
+        // Зовем Егора в машину
+        const dist = Math.hypot(player.x - egor.x, player.y - egor.y);
+        if (dist < 150) {
+          openDialogue("Вы: — Егор, прыгай в тачку, прокатимся!", [
+            { text: "Да, погнали!", action: () => { egor.state = 'walking'; closeDialogue(); } },
+            { text: "Нет, в другой раз.", action: () => closeDialogue() }
+          ]);
+        }
+      }
       return;
     }
 
-    if (distToCar < 80) {
+    // Взаимодействие с магазинами
+    for(let shop of shops) {
+      if (player.x > shop.x && player.x < shop.x + shop.w && player.y > shop.y && player.y < shop.y + shop.h) {
+        openShop(shop);
+        return;
+      }
+    }
+
+    // Взаимодействие с машиной
+    const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
+    if (distToCar < 100) {
       gameState.inCar = true;
+      document.getElementById('eject-ui-btn').style.display = 'block';
       return;
     }
 
+    // Взаимодействие с Егором
+    const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
     if (distToEgor < 60) {
-      openDialogue();
+      openDialogue("Егор: — Ну и чего ты встал? Опять понтуешься?", [
+        { text: "А тебе какое дело?", action: () => closeDialogue() },
+        { text: "Слушай, поехали кататься?", action: () => { egor.state = 'walking'; closeDialogue(); } }
+      ]);
+    }
+  }
+
+  function ejectEgor() {
+    if (!gameState.inCar) return;
+    if (egor.state === 'inCar') {
+      egor.state = 'idle';
+      egor.x = car.x + 80;
+      egor.y = car.y + 80;
+    } else {
+      // Выйти из машины самому
+      gameState.inCar = false;
+      player.x = car.x + 80;
+      player.y = car.y + 80;
+      document.getElementById('eject-ui-btn').style.display = 'none';
     }
   }
 
   function update() {
-    if (gameState.isDialogueOpen) return;
+    if (gameState.activePanel) return;
 
+    // --- ЛОГИКА ЕГОРА (Идет к машине) ---
+    if (egor.state === 'walking') {
+      let dx = car.x - egor.x;
+      let dy = car.y - egor.y;
+      let dist = Math.hypot(dx, dy);
+      if (dist > 40) {
+        egor.x += (dx / dist) * egor.speed;
+        egor.y += (dy / dist) * egor.speed;
+      } else {
+        egor.state = 'inCar'; // Сел в машину
+      }
+    }
+
+    // --- ДВИЖЕНИЕ ---
     if (gameState.inCar) {
-      // ФИЗИКА МАШИНЫ
       if (isUp()) car.speed += car.accel;
       if (isDown()) car.speed -= car.accel;
-      
-      // Трение (машина постепенно останавливается)
       car.speed *= car.friction;
-      
-      // Ограничение скорости
       if (car.speed > car.maxSpeed) car.speed = car.maxSpeed;
       if (car.speed < -car.maxSpeed / 2) car.speed = -car.maxSpeed / 2;
 
-      // Поворот (работает только если машина едет)
       if (Math.abs(car.speed) > 0.5) {
         if (isLeft()) car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
         if (isRight()) car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
       }
 
-      // Движение вперед по углу
       car.x += Math.cos(car.angle) * car.speed;
       car.y += Math.sin(car.angle) * car.speed;
 
-      // Ограничение мира для машины
-      if (car.x < 0) { car.x = 0; car.speed = 0; }
-      if (car.y < 0) { car.y = 0; car.speed = 0; }
-      if (car.x > WORLD_SIZE) { car.x = WORLD_SIZE; car.speed = 0; }
-      if (car.y > WORLD_SIZE) { car.y = WORLD_SIZE; car.speed = 0; }
-
-      // Игрок сидит внутри машины
-      player.x = car.x;
-      player.y = car.y;
-
+      player.x = car.x; player.y = car.y;
     } else {
-      // ХОДЬБА ПЕШКОМ
       let dx = 0, dy = 0;
       if (isUp()) dy -= 1;
       if (isDown()) dy += 1;
       if (isLeft()) dx -= 1;
       if (isRight()) dx += 1;
-
-      if (dx !== 0 && dy !== 0) {
-        const len = Math.sqrt(dx*dx + dy*dy);
-        dx /= len; dy /= len;
-      }
-
+      if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
       player.x += dx * player.speed;
       player.y += dy * player.speed;
-
-      if (player.x < 0) player.x = 0;
-      if (player.y < 0) player.y = 0;
-      if (player.x > WORLD_SIZE) player.x = WORLD_SIZE;
-      if (player.y > WORLD_SIZE) player.y = WORLD_SIZE;
     }
+
+    // Ограничение мира
+    if (player.x < 0) player.x = 0;
+    if (player.y < 0) player.y = 0;
+    if (player.x > WORLD_SIZE) player.x = WORLD_SIZE;
+    if (player.y > WORLD_SIZE) player.y = WORLD_SIZE;
+    if (car.x < 0) { car.x = 0; car.speed = 0; }
+    if (car.y < 0) { car.y = 0; car.speed = 0; }
+    if (car.x > WORLD_SIZE) { car.x = WORLD_SIZE; car.speed = 0; }
+    if (car.y > WORLD_SIZE) { car.y = WORLD_SIZE; car.speed = 0; }
 
     // Камера
     camera.x = player.x - W / 2;
     camera.y = player.y - H / 2;
-
     if (camera.x < 0) camera.x = 0;
     if (camera.y < 0) camera.y = 0;
     if (camera.x > WORLD_SIZE - W) camera.x = WORLD_SIZE - W;
     if (camera.y > WORLD_SIZE - H) camera.y = WORLD_SIZE - H;
   }
 
+  // --- ОТРИСОВКА ---
   function drawHuman(x, y, color, name) {
-    const scale = 1.2; 
-    const headSize = 8 * scale;
-    
-    ctx.save();
-    ctx.translate(x, y);
-
-    // Тень
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.beginPath(); ctx.ellipse(0, 20*scale, 12, 6, 0, 0, Math.PI*2); ctx.fill();
-
-    // Голова
-    ctx.fillStyle = '#fcd0b3';
-    ctx.beginPath();
-    ctx.arc(0, -15 * scale, headSize, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Тело
-    ctx.fillStyle = color;
-    ctx.fillRect(-8 * scale, -5 * scale, 16 * scale, 20 * scale);
-
-    // Ноги
-    ctx.fillStyle = '#333';
-    ctx.fillRect(-7 * scale, 15 * scale, 5 * scale, 12 * scale);
-    ctx.fillRect(2 * scale, 15 * scale, 5 * scale, 12 * scale);
-
-    // Имя
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 14px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(name, 0, -35 * scale);
-    
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0, 25, 15, 8, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(0, -20, 10, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = color; ctx.fillRect(-10, -10, 20, 30);
+    ctx.fillStyle = '#333'; ctx.fillRect(-9, 20, 7, 15); ctx.fillRect(2, 20, 7, 15);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.fillText(name, 0, -40);
     ctx.restore();
   }
 
   function drawCar() {
-    ctx.save();
-    ctx.translate(car.x, car.y);
-    ctx.rotate(car.angle);
-    
-    // Тень
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(-car.width/2 + 5, -car.height/2 + 5, car.width, car.height);
-
-    // Кузов
-    ctx.fillStyle = car.color;
-    ctx.fillRect(-car.width/2, -car.height/2, car.width, car.height);
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-car.width/2, -car.height/2, car.width, car.height);
-
-    // Стекла
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(10, -car.height/2 + 8, 25, car.height - 16); // Лобовое
-    ctx.fillRect(-35, -car.height/2 + 8, 20, car.height - 16); // Заднее
-
-    // Фары
-    ctx.fillStyle = '#f1c40f';
-    ctx.fillRect(car.width/2 - 5, -car.height/2 + 5, 5, 10);
-    ctx.fillRect(car.width/2 - 5, car.height/2 - 15, 5, 10);
-
+    ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-car.width/2 + 10, -car.height/2 + 10, car.width, car.height);
+    ctx.fillStyle = car.color; ctx.fillRect(-car.width/2, -car.height/2, car.width, car.height);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.strokeRect(-car.width/2, -car.height/2, car.width, car.height);
+    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(10, -car.height/2 + 8, 25, car.height - 16); ctx.fillRect(-35, -car.height/2 + 8, 20, car.height - 16);
+    ctx.fillStyle = '#f1c40f'; ctx.fillRect(car.width/2 - 5, -car.height/2 + 5, 5, 10); ctx.fillRect(car.width/2 - 5, car.height/2 - 15, 5, 10);
     ctx.restore();
   }
 
   function draw() {
-    // Очистка
-    ctx.fillStyle = '#1a1a1a';
+    ctx.fillStyle = '#2d5a27'; // Трава
     ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.translate(-camera.x, -camera.y);
 
-    ctx.save();
-    ctx.translate(-camera.x, -camera.y);
+    // Дороги
+    ctx.fillStyle = '#333';
+    ctx.fillRect(WORLD_SIZE/2 - ROAD_WIDTH/2, 0, ROAD_WIDTH, WORLD_SIZE); // Вертикальная
+    ctx.fillRect(0, WORLD_SIZE/2 - ROAD_WIDTH/2, WORLD_SIZE, ROAD_WIDTH); // Горизонтальная
 
-    // Отрисовка сетки (только видимая часть для оптимизации)
-    ctx.strokeStyle = '#2a2a2a';
-    ctx.lineWidth = 1;
-    const startX = Math.floor(camera.x / 100) * 100;
-    const endX = startX + W + 100;
-    const startY = Math.floor(camera.y / 100) * 100;
-    const endY = startY + H + 100;
+    // Разметка
+    ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4; ctx.setLineDash([40, 40]);
+    ctx.beginPath(); ctx.moveTo(WORLD_SIZE/2, 0); ctx.lineTo(WORLD_SIZE/2, WORLD_SIZE); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, WORLD_SIZE/2); ctx.lineTo(WORLD_SIZE, WORLD_SIZE/2); ctx.stroke();
+    ctx.setLineDash([]);
 
-    for (let i = startX; i < endX; i += 100) {
-      ctx.beginPath(); ctx.moveTo(i, camera.y); ctx.lineTo(i, camera.y + H); ctx.stroke();
-    }
-    for (let j = startY; j < endY; j += 100) {
-      ctx.beginPath(); ctx.moveTo(camera.x, j); ctx.lineTo(camera.x + W, j); ctx.stroke();
-    }
+    // Трава/кусты/деревья (оптимизация: рисуем только то, что видно)
+    bushes.forEach(b => {
+      if (b.x > camera.x - 50 && b.x < camera.x + W + 50 && b.y > camera.y - 50 && b.y < camera.y + H + 50) {
+        ctx.fillStyle = '#1e4d1e'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+      }
+    });
 
-    // Отрисовка объектов
+    trees.forEach(t => {
+      if (t.x > camera.x - 100 && t.x < camera.x + W + 100 && t.y > camera.y - 100 && t.y < camera.y + H + 100) {
+        ctx.fillStyle = '#2c1e16'; ctx.fillRect(t.x - 5, t.y, 10, 20); // Ствол
+        ctx.fillStyle = '#1a3b1a'; ctx.beginPath(); ctx.arc(t.x, t.y - 10, t.r, 0, Math.PI*2); ctx.fill(); // Крона
+      }
+    });
+
+    // Фонари
+    lights.forEach(l => {
+      if (l.x > camera.x - 50 && l.x < camera.x + W + 50 && l.y > camera.y - 50 && l.y < camera.y + H + 50) {
+        ctx.fillStyle = '#555'; ctx.fillRect(l.x - 2, l.y - 20, 4, 40); // Столб
+        ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(l.x, l.y - 20, 8, 0, Math.PI*2); ctx.fill(); // Лампа
+        // Свет
+        const grad = ctx.createRadialGradient(l.x, l.y - 20, 5, l.x, l.y - 20, 60);
+        grad.addColorStop(0, 'rgba(241, 196, 15, 0.3)'); grad.addColorStop(1, 'rgba(241, 196, 15, 0)');
+        ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(l.x, l.y - 20, 60, 0, Math.PI*2); ctx.fill();
+      }
+    });
+
+    // Магазины
+    shops.forEach(s => {
+      if (s.x > camera.x - 300 && s.x < camera.x + W + 300 && s.y > camera.y - 300 && s.y < camera.y + H + 300) {
+        ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(s.name, s.x + s.w/2, s.y - 10);
+        // Вход
+        ctx.fillStyle = '#333'; ctx.fillRect(s.x + s.w/2 - 20, s.y + s.h - 10, 40, 10);
+      }
+    });
+
+    // Персонажи
+    if (egor.state !== 'inCar') drawHuman(egor.x, egor.y, egor.color, egor.name);
+    if (!gameState.inCar) drawHuman(player.x, player.y, player.color, player.name);
     drawCar();
-    drawHuman(egor.x, egor.y, egor.color, egor.name);
-
-    if (!gameState.inCar) {
-      drawHuman(player.x, player.y, player.color, player.name);
-    }
 
     // Подсказки
-    ctx.fillStyle = '#f1c40f';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-
-    if (!gameState.isDialogueOpen) {
+    if (!gameState.activePanel) {
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
       if (gameState.inCar) {
-        ctx.fillText("ПРОБЕЛ - выйти из машины", player.x, player.y - 50);
+        ctx.fillText("ПРОБЕЛ - позвать / выйти из машины", player.x, player.y - 60);
       } else {
-        const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
-        const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
-        
-        if (distToCar < 80) ctx.fillText("ПРОБЕЛ - сесть в машину", car.x, car.y - 50);
-        if (distToEgor < 60) ctx.fillText("ПРОБЕЛ - говорить", egor.x, egor.y - 50);
+        shops.forEach(s => {
+           if (player.x > s.x && player.x < s.x + s.w && player.y > s.y && player.y < s.y + s.h) {
+             ctx.fillText("ПРОБЕЛ - зайти в " + s.name, player.x, player.y - 50);
+           }
+        });
       }
     }
 
     ctx.restore();
   }
 
-  function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+  function gameLoop() { update(); draw(); updateHUD(); requestAnimationFrame(gameLoop); }
 
-  // ====== ДИАЛОГИ ======
-  function openDialogue() {
-    gameState.isDialogueOpen = true;
-    document.getElementById('dialogue').style.display = 'flex';
-    showDialogue("Егор: — Ну и чего ты встал? Опять понтуешься перед прохожими?", [
-      { text: "А тебе какое дело? Это моя машина!", action: () => endDialogue() },
-      { text: "Слушай, Егор. Может, прокатимся?", action: () => endDialogue(true) }
-    ]);
-  }
-
-  function showDialogue(text, choices) {
-    document.getElementById('dialogue-text').textContent = text;
-    const container = document.getElementById('dialogue-choices');
-    container.innerHTML = '';
-    choices.forEach(choice => {
-      const btn = document.createElement('button');
-      btn.className = 'choice-btn'; btn.textContent = choice.text; btn.onclick = choice.action;
+  // --- ИНТЕРФЕЙС ---
+  function openDialogue(title, choices) {
+    gameState.activePanel = 'dialogue';
+    document.getElementById('dialogue-panel').style.display = 'flex';
+    document.getElementById('dialogue-title').textContent = title;
+    const container = document.getElementById('dialogue-choices'); container.innerHTML = '';
+    choices.forEach(c => {
+      const btn = document.createElement('button'); btn.className = 'btn'; btn.textContent = c.text; btn.onclick = c.action;
       container.appendChild(btn);
     });
   }
+  function closeDialogue() { gameState.activePanel = null; document.getElementById('dialogue-panel').style.display = 'none'; }
 
-  function endDialogue(egorAgreed = false) {
-    document.getElementById('dialogue').style.display = 'none';
-    gameState.isDialogueOpen = false;
-    if (egorAgreed) alert("Егор: — Ладно, поехали. Только не гони.");
-    else alert("Егор: — Ну и катись тогда.");
+  function openShop(shop) {
+    gameState.activePanel = 'shop';
+    document.getElementById('shop-panel').style.display = 'flex';
+    document.getElementById('shop-title').textContent = shop.name;
+    const container = document.getElementById('shop-items'); container.innerHTML = '';
+    
+    shop.items.forEach(item => {
+      const btn = document.createElement('button'); btn.className = 'btn';
+      btn.innerHTML = `${item.name} — ${item.price} ₽ (+${item.mood} настроения)`;
+      btn.onclick = () => {
+        if (stats.money >= item.price) {
+          stats.money -= item.price;
+          stats.mood += item.mood;
+          if (stats.mood > 100) stats.mood = 100;
+          updateHUD();
+          alert(`Вы купили: ${item.name}. Настроение повысилось!`);
+        } else {
+          alert("Недостаточно денег!");
+        }
+      };
+      container.appendChild(btn);
+    });
   }
+  function closeShop() { gameState.activePanel = null; document.getElementById('shop-panel').style.display = 'none'; }
 
   gameLoop();
 </script>
