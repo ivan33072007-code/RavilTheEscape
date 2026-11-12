@@ -377,31 +377,25 @@
   // ИДЕАЛЬНЫЕ КОЛЛИЗИИ (OBB - Повернутый Прямоугольник)
   // ==========================================
   
-  // Проверяет, пересекается ли круг (cx, cy, radius) с повернутым прямоугольником машины
   function isCircleHittingCar(cx, cy, radius) {
-    // Переводим координаты круга в локальные координаты машины
     let dx = cx - car.x;
     let dy = cy - car.y;
     let cos = Math.cos(-car.angle);
     let sin = Math.sin(-car.angle);
-    
     let localX = dx * cos - dy * sin;
     let localY = dx * sin + dy * cos;
     
-    // Габариты машины (с небольшим запасом в 5 пикселей, чтобы визуально не залезали)
-    let halfW = car.width / 2 + radius - 5;
-    let halfH = car.height / 2 + radius - 5;
+    // Точные габариты машины + радиус круга (без лишних зазоров, чтобы не проскакивать)
+    let halfW = car.width / 2 + radius - 2; 
+    let halfH = car.height / 2 + radius - 2;
     
     return (localX > -halfW && localX < halfW && localY > -halfH && localY < halfH);
   }
 
-  // Проверяет столкновение машины с магазинами
   function carHitsShop() {
     for (let s of shops) {
-      // 1. Проверяем центр машины
       if (car.x > s.x && car.x < s.x + s.w && car.y > s.y && car.y < s.y + s.h) return true;
 
-      // 2. Проверяем 4 угла машины
       let hw = car.width / 2;
       let hh = car.height / 2;
       let cos = Math.cos(car.angle);
@@ -418,6 +412,13 @@
         if (c.x > s.x && c.x < s.x + s.w && c.y > s.y && c.y < s.y + s.h) return true;
       }
     }
+    return false;
+  }
+
+  // Проверка, врезались ли мы куда-то
+  function checkAllCarCollisions() {
+    if (carHitsShop()) return true;
+    if (egor.state !== 'inCar' && isCircleHittingCar(egor.x, egor.y, egor.radius)) return true;
     return false;
   }
 
@@ -442,7 +443,6 @@
         let nextEx = egor.x + (dx / dist) * egor.speed;
         let nextEy = egor.y + (dy / dist) * egor.speed;
         
-        // Егор не может пройти сквозь машину
         if (!isCircleHittingCar(nextEx, nextEy, egor.radius)) {
            egor.x = nextEx; egor.y = nextEy;
            egor.walkCycle += egor.speed * 0.15;
@@ -531,19 +531,41 @@
         }
         car.lastGear = gear;
 
+        // ПРОДВИЖЕНИЕ
         car.x += car.vx;
         car.y += car.vy;
 
-        // ПОЛНАЯ ПРОВЕРКА СТОЛКНОВЕНИЙ ДЛЯ МАШИНЫ (Магазины, Егор, Пешеход)
-        let carCollided = false;
-        if (carHitsShop()) carCollided = true;
-        if (egor.state !== 'inCar' && isCircleHittingCar(egor.x, egor.y, egor.radius)) carCollided = true;
-        if (!gameState.inCar && isCircleHittingCar(player.x, player.y, player.radius)) carCollided = true;
+        // ГЕНИАЛЬНАЯ СИСТЕМА СКОЛЬЖЕНИЯ (Не застревает)
+        if (checkAllCarCollisions()) {
+            // Откатываем X
+            let tempX = car.x;
+            car.x = prevCarX;
+            let collideX = checkAllCarCollisions();
 
-        if (carCollided) {
-          car.x = prevCarX;
-          car.y = prevCarY;
-          car.vx = 0; car.vy = 0; car.speed = 0;
+            // Откатываем Y
+            car.x = tempX;
+            let tempY = car.y;
+            car.y = prevCarY;
+            let collideY = checkAllCarCollisions();
+
+            if (collideX && collideY) {
+                // Врезались углом, откатываем полностью
+                car.x = prevCarX;
+                car.y = prevCarY;
+                car.vx = 0;
+                car.vy = 0;
+                car.speed = 0;
+            } else if (collideX) {
+                // Скользим по Y
+                car.x = prevCarX;
+                car.y = tempY;
+                car.vx = 0;
+            } else if (collideY) {
+                // Скользим по X
+                car.x = tempX;
+                car.y = prevCarY;
+                car.vy = 0;
+            }
         }
 
         updateEngineSound(currentSpeed);
@@ -597,7 +619,6 @@
       player.y += Math.sin(player.angle) * player.speed;
 
       let hitWall = false;
-      // Столкновение с магазинами
       for (let s of shops) {
         let closestX = Math.max(s.x, Math.min(player.x, s.x + s.w));
         let closestY = Math.max(s.y, Math.min(player.y, s.y + s.h));
@@ -605,12 +626,8 @@
         if ((dx * dx + dy * dy) < (player.radius * player.radius)) hitWall = true;
       }
       
-      // ИДЕАЛЬНОЕ СТОЛКНОВЕНИЕ С МАШИНОЙ (Ты не пройдешь сквозь тачку)
-      if (isCircleHittingCar(player.x, player.y, player.radius)) {
-        hitWall = true;
-      }
+      if (isCircleHittingCar(player.x, player.y, player.radius)) hitWall = true;
 
-      // Столкновение с Егором
       if (egor.state !== 'inCar') {
         if (Math.hypot(player.x - egor.x, player.y - egor.y) < player.radius + egor.radius) hitWall = true;
       }
@@ -679,7 +696,6 @@
 
     let swing = Math.sin(walkCycle) * 0.6;
 
-    // НОГИ
     ctx.fillStyle = '#2c3e50'; 
     if (dir === 0) {
       ctx.save(); ctx.translate(-6, -8); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
@@ -691,11 +707,9 @@
       ctx.save(); ctx.translate(0, -6); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-7, 0, 14, 12, 3); ctx.fill(); ctx.restore();
     }
 
-    // ТЕЛО
     ctx.fillStyle = color; 
     ctx.beginPath(); ctx.roundRect(-12, -34, 24, 26, 6); ctx.fill(); 
 
-    // РУКИ
     ctx.fillStyle = '#fcd0b3'; 
     if (dir === 0 || dir === 2) {
       ctx.save(); ctx.translate(-14, -28); ctx.rotate(-swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore();
@@ -704,11 +718,9 @@
       ctx.save(); ctx.translate(-10, -26); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore();
     }
 
-    // ГОЛОВА
     ctx.fillStyle = '#fcd0b3'; 
     ctx.beginPath(); ctx.arc(0, -46, 14, 0, Math.PI*2); ctx.fill();
 
-    // ЛИЦО
     if (isRavil) {
         ctx.fillStyle = '#111';
         if (dir === 0) {
@@ -746,31 +758,26 @@
 
     ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
     
-    // Колеса
     ctx.fillStyle = '#111';
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(30, -car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(-55, car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(30, car.height/2 - 7, 28, 14, 4); ctx.fill();
 
-    // Кузов
     let grad = ctx.createLinearGradient(0, -car.height/2, 0, car.height/2);
     grad.addColorStop(0, '#222'); grad.addColorStop(0.5, '#050505'); grad.addColorStop(1, '#222');
     ctx.beginPath(); ctx.roundRect(-car.width/2, -car.height/2 + 5, car.width, car.height - 10, 20);
     ctx.fillStyle = grad; ctx.fill();
     ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.stroke();
 
-    // Капот и багажник
     ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-40, -car.height/2 + 8); ctx.lineTo(40, -car.height/2 + 8); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-40, car.height/2 - 8); ctx.lineTo(40, car.height/2 - 8); ctx.stroke();
 
-    // Зеркала
     ctx.fillStyle = '#111';
     ctx.beginPath(); ctx.roundRect(-10, -car.height/2 - 5, 15, 5, 2); ctx.fill();
     ctx.beginPath(); ctx.roundRect(-10, car.height/2, 15, 5, 2); ctx.fill();
 
-    // Сиденья
     ctx.fillStyle = '#1a1a1a';
     ctx.beginPath(); ctx.roundRect(-30, -25, 60, 20, 5); ctx.fill(); 
     ctx.beginPath(); ctx.roundRect(-30, 5, 60, 20, 5); ctx.fill(); 
@@ -782,15 +789,12 @@
       ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, 15, 8, 0, Math.PI*2); ctx.fill();
     }
 
-    // Стекла
     ctx.fillStyle = 'rgba(10, 15, 20, 0.85)'; 
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 + 12, 100, car.height - 24, 15); ctx.fill();
     
-    // Блик
     ctx.fillStyle = 'rgba(255,255,255,0.1)';
     ctx.beginPath(); ctx.roundRect(-50, -car.height/2 + 15, 90, 10, 5); ctx.fill();
 
-    // Фары
     if (car.isEngineOn) {
       ctx.fillStyle = '#e0f7fa'; 
       ctx.fillRect(car.width/2 - 3, -car.height/2 + 8, 5, 12); 
