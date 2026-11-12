@@ -10,26 +10,21 @@
   canvas { display: block; width: 100vw; height: 100vh; background: #2d5a27; }
   #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   
-  /* HUD */
   #hud { position: absolute; top: 20px; left: 20px; color: #fff; font-weight: bold; font-size: 18px; text-shadow: 0 2px 4px #000; pointer-events: none; }
   #hud div { margin-bottom: 5px; }
   .stat-value { color: #f1c40f; }
   #hud-mission { color: #2ecc71; margin-top: 10px; display: none; text-shadow: 0 0 5px #000; }
 
-  /* Кнопка Настроек */
   #settings-btn { position: absolute; top: 20px; right: 20px; pointer-events: auto; width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: 0.2s; }
   #settings-btn:hover { background: #fff; color: #000; }
   
-  /* Окно настроек */
-  #settings-panel { position: absolute; top: 80px; right: 20px; pointer-events: auto; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 10px; z-index: 200; width: 300px; }
+  #settings-panel { position: absolute; top: 80px; right: 20px; pointer-events: auto; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 10px; z-index: 200; width: 320px; }
   #settings-panel h3 { color: #f1c40f; margin-bottom: 10px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
   .control-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
   .key { background: #333; padding: 2px 8px; border-radius: 4px; border: 1px solid #555; font-weight: bold; color: #f1c40f; }
 
-  /* Подсказка */
   #interaction-hint { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #f1c40f; padding: 10px 20px; border-radius: 20px; font-weight: bold; border: 1px solid #f1c40f; display: none; pointer-events: auto; text-shadow: 0 1px 2px #000; text-align: center; }
 
-  /* Панели */
   .panel { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 15px; pointer-events: auto; z-index: 100; }
   .panel-title { font-size: 20px; color: #f1c40f; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
   .panel-text { font-size: 16px; line-height: 1.5; }
@@ -41,6 +36,10 @@
 <body>
 
 <canvas id="gameCanvas"></canvas>
+
+<!-- АУДИО -->
+<audio id="bg-music" loop src="music1.mp3"></audio>
+<audio id="engine-sound" loop src="motor.mp3"></audio>
 
 <div id="ui-layer">
   <div id="hud">
@@ -54,7 +53,8 @@
   <div id="settings-panel">
     <h3>Управление (ПК)</h3>
     <div class="control-row"><span>Движение:</span> <span><span class="key">W</span> <span class="key">A</span> <span class="key">S</span> <span class="key">D</span></span></div>
-    <div class="control-row"><span>Действие / Позвать:</span> <span><span class="key">E</span> или <span class="key">Пробел</span></span></div>
+    <div class="control-row"><span>Завести / Заглушить:</span> <span><span class="key">Q</span></span></div>
+    <div class="control-row"><span>Действие / Позвать:</span> <span><span class="key">E</span> / <span class="key">Пробел</span></span></div>
     <div class="control-row"><span>Выйти из машины:</span> <span><span class="key">F</span></span></div>
   </div>
 
@@ -76,6 +76,8 @@
 <script>
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
+  const bgMusic = document.getElementById('bg-music');
+  const engineSound = document.getElementById('engine-sound');
   let W, H;
   function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
   window.addEventListener('resize', resize); resize();
@@ -89,9 +91,16 @@
   let stats = { money: 1000, mood: 50 };
   let mission = { active: false, destX: 0, destY: 0 };
 
-  const player = { x: 5000, y: 5300, angle: -Math.PI/2, speed: 0, maxSpeed: 4.5, accel: 0.3, friction: 0.85, turnSpeed: 0.2, color: '#3498db', name: "Равиль" };
+  // Уменьшена скорость пешехода, увеличена скорость машины
+  const player = { x: 5000, y: 5300, angle: -Math.PI/2, speed: 0, maxSpeed: 3.5, accel: 0.25, friction: 0.8, turnSpeed: 0.2, color: '#3498db', name: "Равиль" };
   const egor = { x: 4900, y: 5200, speed: 3, color: '#e74c3c', name: "Егор", state: 'idle' };
-  const car = { x: 5000, y: 5000, angle: -Math.PI/2, speed: 0, maxSpeed: 14, accel: 0.25, friction: 0.92, turnSpeed: 0.04, width: 100, height: 50, color: '#000' };
+  
+  const car = { 
+    x: 5000, y: 5000, angle: -Math.PI/2, speed: 0, 
+    maxSpeed: 25, accel: 0.5, friction: 0.95, turnSpeed: 0.05, 
+    width: 100, height: 50, color: '#000',
+    isEngineOn: false 
+  };
   
   const camera = { x: 0, y: 0 };
   const keys = {};
@@ -99,12 +108,9 @@
   const trees = [];
   const bushes = [];
   const lights = [];
-  
-  // КОФЕЙНЯ ТЕПЕРЬ НА УГЛУ ПЕРЕКРЕСТКА (5000, 2500)
-  // ШАУРМИЧНАЯ НА УГЛУ (2500, 5000)
   const shops = [
-    { x: 5200, y: 2250, w: 200, h: 150, name: "Кофейня", color: "#8e44ad", items: [{ name: "Кофе", price: 150, mood: 15 }] },
-    { x: 2250, y: 5200, w: 250, h: 200, name: "Шаурмичная", color: "#d35400", items: [{ name: "Шаурма", price: 300, mood: 30 }] }
+    { x: 5300, y: 2100, w: 200, h: 150, name: "Кофейня", color: "#8e44ad", items: [{ name: "Кофе", price: 150, mood: 15 }] },
+    { x: 1950, y: 5300, w: 250, h: 200, name: "Шаурмичная", color: "#d35400", items: [{ name: "Шаурма", price: 300, mood: 30 }] }
   ];
 
   function isOnRoad(x, y) {
@@ -114,7 +120,6 @@
   }
 
   function initWorld() {
-    // Деревья и кусты
     for(let i=0; i<800; i++) {
       let tx = Math.random() * WORLD_SIZE;
       let ty = Math.random() * WORLD_SIZE;
@@ -126,11 +131,9 @@
       if (!isOnRoad(bx, by)) bushes.push({ x: bx, y: by, r: 15 + Math.random()*10 });
     }
     
-    // ИСПРАВЛЕННЫЕ ФОНАРИ (Строго по обочинам, вне перекрестков)
     const lightOffset = ROAD_WIDTH/2 + 50;
     const step = 400;
 
-    // Вертикальные дороги
     for (let rx of roadsX) {
       for (let y = 0; y < WORLD_SIZE; y += step) {
         let isIntersection = false;
@@ -141,8 +144,6 @@
         }
       }
     }
-
-    // Горизонтальные дороги
     for (let ry of roadsY) {
       for (let x = 0; x < WORLD_SIZE; x += step) {
         let isIntersection = false;
@@ -171,6 +172,11 @@
       if (!gameState.activePanel) exitCarOrEject();
       e.preventDefault();
     }
+    // Кнопка Q (Завести машину)
+    if (key === 'q' || key === 'й') {
+      if (gameState.inCar && !gameState.activePanel) toggleEngine();
+      e.preventDefault();
+    }
     
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) e.preventDefault();
   });
@@ -190,6 +196,19 @@
     document.getElementById('hud-money').textContent = stats.money;
     document.getElementById('hud-mood').textContent = stats.mood;
     document.getElementById('hud-mission').style.display = mission.active ? 'block' : 'none';
+  }
+
+  // ЗАПУСК ДВИГАТЕЛЯ
+  function toggleEngine() {
+    car.isEngineOn = !car.isEngineOn;
+    if (car.isEngineOn) {
+      engineSound.play().catch(e => console.log("Аудио заблокировано"));
+      bgMusic.play().catch(e => console.log("Аудио заблокировано"));
+      bgMusic.volume = 0.5;
+    } else {
+      engineSound.pause();
+      bgMusic.pause();
+    }
   }
 
   function interact() {
@@ -233,7 +252,13 @@
         egor.y = car.y + 80;
         mission.active = false;
       } else {
+        // При выходе из машины глушим двигатель
         gameState.inCar = false;
+        car.speed = 0;
+        car.isEngineOn = false;
+        engineSound.pause();
+        bgMusic.pause();
+
         player.x = car.x + Math.cos(car.angle + Math.PI/2) * 80;
         player.y = car.y + Math.sin(car.angle + Math.PI/2) * 80;
       }
@@ -254,13 +279,10 @@
         egor.state = 'inCar';
         mission.active = true;
         
-        // ИСПРАВЛЕНИЕ: Точка назначения ВСЕГДА на дороге
         if (Math.random() > 0.5) {
-          // На вертикальной дороге
           mission.destX = roadsX[Math.floor(Math.random() * roadsX.length)];
           mission.destY = Math.random() * WORLD_SIZE;
         } else {
-          // На горизонтальной дороге
           mission.destX = Math.random() * WORLD_SIZE;
           mission.destY = roadsY[Math.floor(Math.random() * roadsY.length)];
         }
@@ -281,19 +303,32 @@
     }
 
     if (gameState.inCar) {
-      if (isUp()) car.speed += car.accel;
-      if (isDown()) car.speed -= car.accel;
-      car.speed *= car.friction;
-      if (car.speed > car.maxSpeed) car.speed = car.maxSpeed;
-      if (car.speed < -car.maxSpeed / 2) car.speed = -car.maxSpeed / 2;
+      // Машина едет только если двигатель заведен
+      if (car.isEngineOn) {
+        if (isUp()) car.speed += car.accel;
+        if (isDown()) car.speed -= car.accel;
+        car.speed *= car.friction;
+        
+        // Ограничение макс скорости
+        if (car.speed > car.maxSpeed) car.speed = car.maxSpeed;
+        if (car.speed < -car.maxSpeed / 2) car.speed = -car.maxSpeed / 2;
 
-      if (Math.abs(car.speed) > 0.5) {
-        if (isLeft()) car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
-        if (isRight()) car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
+        if (Math.abs(car.speed) > 0.5) {
+          if (isLeft()) car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
+          if (isRight()) car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
+        }
+
+        car.x += Math.cos(car.angle) * car.speed;
+        car.y += Math.sin(car.angle) * car.speed;
+        
+        // Звук мотора меняет высоту в зависимости от скорости
+        if (!engineSound.paused) {
+          engineSound.playbackRate = 0.8 + (Math.abs(car.speed) / car.maxSpeed) * 1.5;
+        }
+      } else {
+        car.speed = 0; // Если заглушена, стоит на месте
+        if (!engineSound.paused) engineSound.playbackRate = 1;
       }
-
-      car.x += Math.cos(car.angle) * car.speed;
-      car.y += Math.sin(car.angle) * car.speed;
 
       player.x = car.x; player.y = car.y;
     } else {
@@ -348,7 +383,9 @@
     let text = "";
     if (gameState.inCar) {
       const dist = Math.hypot(car.x - egor.x, car.y - egor.y);
-      if (egor.state === 'idle' && dist < 250) {
+      if (!car.isEngineOn) {
+        text = "Нажмите [Q] чтобы завести двигатель";
+      } else if (egor.state === 'idle' && dist < 250) {
         text = "Нажмите [E] чтобы позвать Егора";
       } else if (egor.state === 'inCar') {
         text = "Нажмите [F] чтобы высадить Егора";
@@ -386,55 +423,66 @@
     ctx.fillText(name, x, y - 60);
   }
 
-  // ИСПРАВЛЕННЫЙ САЛОН МАШИНЫ (Оба внутри)
   function drawCar() {
     ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
-    
-    // Тень
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-car.width/2 + 5, -car.height/2 + 5, car.width, car.height);
     
-    // Кузов
-    ctx.fillStyle = car.color; ctx.fillRect(-car.width/2, -car.height/2, car.width, car.height);
-    ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.strokeRect(-car.width/2, -car.height/2, car.width, car.height);
-    
-    // Стекла
-    ctx.fillStyle = '#1a1a1a'; 
-    ctx.fillRect(10, -car.height/2 + 5, 25, car.height - 10); // Лобовое
-    ctx.fillRect(-35, -car.height/2 + 5, 20, car.height - 10); // Заднее
+    // Колеса
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-35, -car.height/2 - 4, 18, 8);
+    ctx.fillRect(17, -car.height/2 - 4, 18, 8);
+    ctx.fillRect(-35, car.height/2 - 4, 18, 8);
+    ctx.fillRect(17, car.height/2 - 4, 18, 8);
 
-    // Голова Равиля (Водитель, слева)
+    // Кузов
+    ctx.fillStyle = car.color; ctx.fillRect(-car.width/2, -car.height/2 + 4, car.width, car.height - 8);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.strokeRect(-car.width/2, -car.height/2 + 4, car.width, car.height - 8);
+    
+    // Крыша и стекла
+    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(-30, -car.height/2 + 8, 60, car.height - 16);
+    ctx.fillStyle = '#34495e'; 
+    ctx.fillRect(15, -car.height/2 + 10, 15, car.height - 20); 
+    ctx.fillRect(-40, -car.height/2 + 10, 10, car.height - 20); 
+
+    // Люди внутри
     if (gameState.inCar) {
       ctx.fillStyle = '#fcd0b3';
-      ctx.beginPath(); ctx.arc(-10, 0, 6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(5, -10, 6, 0, Math.PI*2); ctx.fill();
     }
-
-    // Голова Егора (Пассажир, справа)
     if (egor.state === 'inCar') {
       ctx.fillStyle = '#fcd0b3';
-      ctx.beginPath(); ctx.arc(15, 0, 6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(5, 10, 6, 0, Math.PI*2); ctx.fill();
     }
 
-    // Фары (Спереди)
-    ctx.fillStyle = '#f1c40f'; 
-    ctx.fillRect(car.width/2 - 3, -car.height/2 + 5, 3, 8); 
-    ctx.fillRect(car.width/2 - 3, car.height/2 - 13, 3, 8); 
-    
-    // Стопы (Сзади)
+    // Фары (работают только если движок заведен)
+    if (car.isEngineOn) {
+      ctx.fillStyle = '#f1c40f'; 
+      ctx.fillRect(car.width/2 - 2, -car.height/2 + 5, 4, 8); 
+      ctx.fillRect(car.width/2 - 2, car.height/2 - 13, 4, 8); 
+      // Свет от фар
+      const grad = ctx.createLinearGradient(car.width/2, 0, car.width/2 + 200, 0);
+      grad.addColorStop(0, 'rgba(241, 196, 15, 0.2)'); grad.addColorStop(1, 'rgba(241, 196, 15, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.moveTo(car.width/2, -car.height/2 + 9); ctx.lineTo(car.width/2 + 200, -100); ctx.lineTo(car.width/2 + 200, 100); ctx.lineTo(car.width/2, car.height/2 - 9); ctx.fill();
+    }
+
+    // Стопы
     ctx.fillStyle = '#e74c3c';
-    ctx.fillRect(-car.width/2, -car.height/2 + 5, 3, 8); 
-    ctx.fillRect(-car.width/2, car.height/2 - 13, 3, 8); 
+    ctx.fillRect(-car.width/2 - 2, -car.height/2 + 5, 4, 8); 
+    ctx.fillRect(-car.width/2 - 2, car.height/2 - 13, 4, 8); 
 
     ctx.restore();
   }
 
+  // ПОЛНОЦЕННАЯ МИНИ-КАРТА
   function drawMinimap() {
-    const mapSize = 150;
+    const mapSize = 200; // Увеличили карту
     const mapX = 20;
     const mapY = H - mapSize - 20;
 
     ctx.save();
     ctx.translate(mapX, mapY);
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.fillRect(0, 0, mapSize, mapSize);
     ctx.strokeStyle = '#f1c40f';
     ctx.lineWidth = 2;
@@ -447,21 +495,27 @@
     for (let rx of roadsX) ctx.fillRect((rx - ROAD_WIDTH/2) * scale, 0, ROAD_WIDTH * scale, mapSize);
     for (let ry of roadsY) ctx.fillRect(0, (ry - ROAD_WIDTH/2) * scale, mapSize, ROAD_WIDTH * scale);
 
-    // Равиль
-    ctx.fillStyle = '#3498db';
-    ctx.beginPath(); ctx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI*2); ctx.fill();
-
-    // Егор
-    if (egor.state !== 'inCar') {
-      ctx.fillStyle = '#e74c3c';
-      ctx.beginPath(); ctx.arc(egor.x * scale, egor.y * scale, 3, 0, Math.PI*2); ctx.fill();
-    }
+    // Магазины
+    shops.forEach(s => {
+      ctx.fillStyle = s.color;
+      ctx.fillRect(s.x * scale - 2, s.y * scale - 2, 4, 4);
+    });
 
     // Цель
     if (mission.active) {
       ctx.fillStyle = '#2ecc71';
       ctx.beginPath(); ctx.arc(mission.destX * scale, mission.destY * scale, 4, 0, Math.PI*2); ctx.fill();
     }
+
+    // Егор (красный)
+    if (egor.state !== 'inCar') {
+      ctx.fillStyle = '#e74c3c';
+      ctx.beginPath(); ctx.arc(egor.x * scale, egor.y * scale, 3, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Равиль (синий, поверх всего)
+    ctx.fillStyle = '#3498db';
+    ctx.beginPath(); ctx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI*2); ctx.fill();
 
     ctx.restore();
   }
@@ -480,7 +534,6 @@
     for (let ry of roadsY) { ctx.beginPath(); ctx.moveTo(0, ry); ctx.lineTo(WORLD_SIZE, ry); ctx.stroke(); }
     ctx.setLineDash([]);
 
-    // Деревья и кусты
     bushes.forEach(b => {
       if (b.x > camera.x - 50 && b.x < camera.x + W + 50 && b.y > camera.y - 50 && b.y < camera.y + H + 50) {
         ctx.fillStyle = '#1e4d1e'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
@@ -493,7 +546,6 @@
       }
     });
 
-    // Фонари
     lights.forEach(l => {
       if (l.x > camera.x - 50 && l.x < camera.x + W + 50 && l.y > camera.y - 50 && l.y < camera.y + H + 50) {
         ctx.fillStyle = '#555'; ctx.fillRect(l.x - 2, l.y - 20, 4, 40);
@@ -504,9 +556,9 @@
       }
     });
 
-    // Магазины
     shops.forEach(s => {
       if (s.x > camera.x - 300 && s.x < camera.x + W + 300 && s.y > camera.y - 300 && s.y < camera.y + H + 300) {
+        ctx.fillStyle = '#444'; ctx.fillRect(s.x - 30, s.y - 30, s.w + 60, s.h + 60);
         ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(s.x + 10, s.y + 10, s.w, s.h);
         ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h);
         ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(s.x, s.y, s.w, 40);
@@ -516,7 +568,6 @@
       }
     });
 
-    // Линия и метка цели
     if (mission.active) {
       ctx.strokeStyle = 'rgba(46, 204, 113, 0.6)';
       ctx.lineWidth = 3;
@@ -535,7 +586,6 @@
     drawCar();
 
     ctx.restore();
-
     drawMinimap();
   }
 
