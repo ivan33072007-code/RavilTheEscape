@@ -160,7 +160,6 @@
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
     const now = audioCtx.currentTime;
-
     const osc = audioCtx.createOscillator();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(80, now);
@@ -378,7 +377,7 @@
   // ИДЕАЛЬНЫЕ КОЛЛИЗИИ (OBB - Повернутый Прямоугольник)
   // ==========================================
   
-  // Проверяет, пересекается ли круг с повернутым прямоугольником машины
+  // Проверяет, пересекается ли круг (cx, cy, radius) с повернутым прямоугольником машины
   function isCircleHittingCar(cx, cy, radius) {
     // Переводим координаты круга в локальные координаты машины
     let dx = cx - car.x;
@@ -389,35 +388,32 @@
     let localX = dx * cos - dy * sin;
     let localY = dx * sin + dy * cos;
     
-    // Габариты машины + радиус круга
-    let halfW = car.width / 2 + radius;
-    let halfH = car.height / 2 + radius;
+    // Габариты машины (с небольшим запасом в 5 пикселей, чтобы визуально не залезали)
+    let halfW = car.width / 2 + radius - 5;
+    let halfH = car.height / 2 + radius - 5;
     
-    // Проверка на пересечение с AABB в локальных координатах
     return (localX > -halfW && localX < halfW && localY > -halfH && localY < halfH);
   }
 
   // Проверяет столкновение машины с магазинами
   function carHitsShop() {
-    // 1. Проверяем, не заехал ли центр машины в магазин
     for (let s of shops) {
+      // 1. Проверяем центр машины
       if (car.x > s.x && car.x < s.x + s.w && car.y > s.y && car.y < s.y + s.h) return true;
-    }
 
-    // 2. Проверяем 4 угла машины
-    let hw = car.width / 2;
-    let hh = car.height / 2;
-    let cos = Math.cos(car.angle);
-    let sin = Math.sin(car.angle);
-    
-    let corners = [
-      {x: car.x - hw*cos - hh*sin, y: car.y - hw*sin + hh*cos}, // Левый верх
-      {x: car.x + hw*cos - hh*sin, y: car.y + hw*sin + hh*cos}, // Правый верх
-      {x: car.x + hw*cos + hh*sin, y: car.y + hw*sin - hh*cos}, // Правый низ
-      {x: car.x - hw*cos + hh*sin, y: car.y - hw*sin - hh*cos}  // Левый низ
-    ];
+      // 2. Проверяем 4 угла машины
+      let hw = car.width / 2;
+      let hh = car.height / 2;
+      let cos = Math.cos(car.angle);
+      let sin = Math.sin(car.angle);
+      
+      let corners = [
+        {x: car.x - hw*cos - hh*sin, y: car.y - hw*sin + hh*cos},
+        {x: car.x + hw*cos - hh*sin, y: car.y + hw*sin + hh*cos},
+        {x: car.x + hw*cos + hh*sin, y: car.y + hw*sin - hh*cos},
+        {x: car.x - hw*cos + hh*sin, y: car.y - hw*sin - hh*cos}
+      ];
 
-    for (let s of shops) {
       for (let c of corners) {
         if (c.x > s.x && c.x < s.x + s.w && c.y > s.y && c.y < s.y + s.h) return true;
       }
@@ -538,8 +534,13 @@
         car.x += car.vx;
         car.y += car.vy;
 
-        // Коллизия машины со стенами
-        if (carHitsShop()) {
+        // ПОЛНАЯ ПРОВЕРКА СТОЛКНОВЕНИЙ ДЛЯ МАШИНЫ (Магазины, Егор, Пешеход)
+        let carCollided = false;
+        if (carHitsShop()) carCollided = true;
+        if (egor.state !== 'inCar' && isCircleHittingCar(egor.x, egor.y, egor.radius)) carCollided = true;
+        if (!gameState.inCar && isCircleHittingCar(player.x, player.y, player.radius)) carCollided = true;
+
+        if (carCollided) {
           car.x = prevCarX;
           car.y = prevCarY;
           car.vx = 0; car.vy = 0; car.speed = 0;
@@ -604,7 +605,7 @@
         if ((dx * dx + dy * dy) < (player.radius * player.radius)) hitWall = true;
       }
       
-      // ИДЕАЛЬНОЕ СТОЛКНОВЕНИЕ С МАШИНОЙ
+      // ИДЕАЛЬНОЕ СТОЛКНОВЕНИЕ С МАШИНОЙ (Ты не пройдешь сквозь тачку)
       if (isCircleHittingCar(player.x, player.y, player.radius)) {
         hitWall = true;
       }
@@ -735,7 +736,6 @@
     ctx.fillText(name, x, y - 75);
   }
 
-  // --- УЛУЧШЕННАЯ ТЕКСТУРА МАШИНЫ ---
   function drawCar() {
     ctx.save();
     ctx.translate(car.x + 20, car.y + 20); 
@@ -746,7 +746,7 @@
 
     ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
     
-    // Колеса (сзади)
+    // Колеса
     ctx.fillStyle = '#111';
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(30, -car.height/2 - 7, 28, 14, 4); ctx.fill();
@@ -760,7 +760,7 @@
     ctx.fillStyle = grad; ctx.fill();
     ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.stroke();
 
-    // Капот и багажник (линии)
+    // Капот и багажник
     ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-40, -car.height/2 + 8); ctx.lineTo(40, -car.height/2 + 8); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-40, car.height/2 - 8); ctx.lineTo(40, car.height/2 - 8); ctx.stroke();
@@ -782,7 +782,7 @@
       ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, 15, 8, 0, Math.PI*2); ctx.fill();
     }
 
-    // Стекла (тонировка)
+    // Стекла
     ctx.fillStyle = 'rgba(10, 15, 20, 0.85)'; 
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 + 12, 100, car.height - 24, 15); ctx.fill();
     
