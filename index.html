@@ -20,20 +20,14 @@
   #settings-btn { position: absolute; top: 20px; right: 20px; pointer-events: auto; width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: 0.2s; }
   #settings-btn:hover { background: #fff; color: #000; }
   
-  /* Окно настроек (Только текст) */
-  #settings-panel { 
-    position: absolute; top: 80px; right: 20px; pointer-events: auto; 
-    background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; 
-    border-radius: 10px; padding: 20px; color: #fff; 
-    display: none; flex-direction: column; gap: 10px; z-index: 200; 
-    width: 300px;
-  }
+  /* Окно настроек */
+  #settings-panel { position: absolute; top: 80px; right: 20px; pointer-events: auto; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 10px; z-index: 200; width: 300px; }
   #settings-panel h3 { color: #f1c40f; margin-bottom: 10px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
   .control-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
   .key { background: #333; padding: 2px 8px; border-radius: 4px; border: 1px solid #555; font-weight: bold; color: #f1c40f; }
 
   /* Подсказка */
-  #interaction-hint { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #f1c40f; padding: 10px 20px; border-radius: 20px; font-weight: bold; border: 1px solid #f1c40f; display: none; pointer-events: auto; cursor: pointer; text-shadow: 0 1px 2px #000; text-align: center; }
+  #interaction-hint { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #f1c40f; padding: 10px 20px; border-radius: 20px; font-weight: bold; border: 1px solid #f1c40f; display: none; pointer-events: auto; text-shadow: 0 1px 2px #000; text-align: center; }
 
   /* Панели */
   .panel { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 15px; pointer-events: auto; z-index: 100; }
@@ -52,20 +46,19 @@
   <div id="hud">
     <div>Деньги: <span class="stat-value" id="hud-money">1000</span> ₽</div>
     <div>Настроение: <span class="stat-value" id="hud-mood">50</span>%</div>
-    <div id="hud-mission">Пассажир: Егор (Довезите до зеленой метки!)</div>
+    <div id="hud-mission">Пассажир: Егор (Следуйте по стрелке)</div>
   </div>
 
   <button id="settings-btn" onclick="toggleSettings()">⚙️</button>
 
   <div id="settings-panel">
-    <h3>Управление</h3>
+    <h3>Управление (ПК)</h3>
     <div class="control-row"><span>Движение:</span> <span><span class="key">W</span> <span class="key">A</span> <span class="key">S</span> <span class="key">D</span></span></div>
-    <div class="control-row"><span>Действие / Выйти:</span> <span><span class="key">E</span> или <span class="key">Пробел</span></span></div>
-    <div class="control-row"><span>Высадить Егора:</span> <span><span class="key">F</span></span></div>
-    <p style="font-size: 12px; color: #888; margin-top: 15px; text-align: center;">* Поддержка телефонов будет позже</p>
+    <div class="control-row"><span>Действие / Позвать:</span> <span><span class="key">E</span> или <span class="key">Пробел</span></span></div>
+    <div class="control-row"><span>Выйти из машины:</span> <span><span class="key">F</span></span></div>
   </div>
 
-  <div id="interaction-hint" onclick="interact()">Нажмите [E]</div>
+  <div id="interaction-hint">Нажмите [E]</div>
 
   <div class="panel" id="dialogue-panel">
     <div class="panel-title" id="dialogue-title">Диалог</div>
@@ -152,12 +145,14 @@
     const key = e.key.toLowerCase();
     keys[key] = true;
     
+    // E - Действие / Позвать
     if (key === ' ' || key === 'e' || key === 'у') {
       if (!gameState.activePanel) interact();
       e.preventDefault();
     }
+    // F - Выйти / Высадить
     if (key === 'f' || key === 'а') {
-      if (!gameState.activePanel) ejectEgor();
+      if (!gameState.activePanel) exitCarOrEject();
       e.preventDefault();
     }
     
@@ -181,13 +176,16 @@
     document.getElementById('hud-mission').style.display = mission.active ? 'block' : 'none';
   }
 
+  // Действие (Вход/Позвать)
   function interact() {
     if (gameState.activePanel) return;
 
     if (gameState.inCar) {
-      gameState.inCar = false;
-      player.x = car.x + Math.cos(car.angle + Math.PI/2) * 80;
-      player.y = car.y + Math.sin(car.angle + Math.PI/2) * 80;
+      // Если в машине и рядом Егор - зовем его
+      const dist = Math.hypot(car.x - egor.x, car.y - egor.y);
+      if (egor.state === 'idle' && dist < 250) {
+        egor.state = 'walking';
+      }
       return;
     }
 
@@ -213,19 +211,30 @@
     }
   }
 
-  function ejectEgor() {
+  // Выход из машины (F)
+  function exitCarOrEject() {
     if (gameState.activePanel) return;
-    if (egor.state === 'inCar') {
-      egor.state = 'idle';
-      egor.x = car.x + 80;
-      egor.y = car.y + 80;
-      mission.active = false;
+    
+    if (gameState.inCar) {
+      if (egor.state === 'inCar') {
+        // Если Егор в машине - высаживаем его
+        egor.state = 'idle';
+        egor.x = car.x + 80;
+        egor.y = car.y + 80;
+        mission.active = false;
+      } else {
+        // Иначе выходим сами
+        gameState.inCar = false;
+        player.x = car.x + Math.cos(car.angle + Math.PI/2) * 80;
+        player.y = car.y + Math.sin(car.angle + Math.PI/2) * 80;
+      }
     }
   }
 
   function update() {
     if (gameState.activePanel) return;
 
+    // Егор идет к машине
     if (egor.state === 'walking') {
       let dx = car.x - egor.x;
       let dy = car.y - egor.y;
@@ -236,11 +245,13 @@
       } else {
         egor.state = 'inCar';
         mission.active = true;
+        // Генерируем точку для такси
         mission.destX = Math.random() * (WORLD_SIZE - 2000) + 1000;
         mission.destY = Math.random() * (WORLD_SIZE - 2000) + 1000;
       }
     }
 
+    // Проверка доезда до точки
     if (mission.active && gameState.inCar) {
       let distToDest = Math.hypot(car.x - mission.destX, car.y - mission.destY);
       if (distToDest < 150) {
@@ -254,6 +265,7 @@
       }
     }
 
+    // Физика
     if (gameState.inCar) {
       if (isUp()) car.speed += car.accel;
       if (isDown()) car.speed -= car.accel;
@@ -296,6 +308,7 @@
       player.y += Math.sin(player.angle) * player.speed;
     }
 
+    // Ограничение мира
     if (player.x < 0) { player.x = 0; player.speed = 0; }
     if (player.y < 0) { player.y = 0; player.speed = 0; }
     if (player.x > WORLD_SIZE) { player.x = WORLD_SIZE; player.speed = 0; }
@@ -321,9 +334,13 @@
 
     let text = "";
     if (gameState.inCar) {
-      text = "Нажмите [E] чтобы выйти из машины";
-      if (egor.state === 'inCar') {
-        text += "<br><span style='font-size: 12px; color: #ff9999;'>[F] Высадить Егора</span>";
+      const dist = Math.hypot(car.x - egor.x, car.y - egor.y);
+      if (egor.state === 'idle' && dist < 250) {
+        text = "Нажмите [E] чтобы позвать Егора";
+      } else if (egor.state === 'inCar') {
+        text = "Нажмите [F] чтобы высадить Егора";
+      } else {
+        text = "Нажмите [F] чтобы выйти";
       }
     } else {
       const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
@@ -356,19 +373,77 @@
     ctx.fillText(name, x, y - 60);
   }
 
+  // ИСПРАВЛЕННАЯ ОТРИСОВКА МАШИНЫ
   function drawCar() {
     ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-car.width/2 + 10, -car.height/2 + 10, car.width, car.height);
+    
+    // Тень
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-car.width/2 + 5, -car.height/2 + 5, car.width, car.height);
+    
+    // Кузов
     ctx.fillStyle = car.color; ctx.fillRect(-car.width/2, -car.height/2, car.width, car.height);
     ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.strokeRect(-car.width/2, -car.height/2, car.width, car.height);
-    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(10, -car.height/2 + 8, 25, car.height - 16); ctx.fillRect(-35, -car.height/2 + 8, 20, car.height - 16);
     
+    // Лобовое стекло (спереди)
+    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(10, -car.height/2 + 5, 25, car.height - 10); 
+    // Заднее стекло
+    ctx.fillRect(-35, -car.height/2 + 5, 20, car.height - 10);
+
+    // Голова Егора на пассажирском сиденье (справа)
     if (egor.state === 'inCar') {
       ctx.fillStyle = '#fcd0b3';
-      ctx.beginPath(); ctx.arc(10, car.height/2 - 15, 8, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(20, -10, 6, 0, Math.PI*2); ctx.fill();
     }
+
+    // Фары (Спереди)
+    ctx.fillStyle = '#f1c40f'; 
+    ctx.fillRect(car.width/2 - 3, -car.height/2 + 5, 3, 8); 
+    ctx.fillRect(car.width/2 - 3, car.height/2 - 13, 3, 8); 
     
-    ctx.fillStyle = '#f1c40f'; ctx.fillRect(car.width/2 - 5, -car.height/2 + 5, 5, 10); ctx.fillRect(car.width/2 - 5, car.height/2 - 15, 5, 10);
+    // Стопы (Сзади)
+    ctx.fillStyle = '#e74c3c';
+    ctx.fillRect(-car.width/2, -car.height/2 + 5, 3, 8); 
+    ctx.fillRect(-car.width/2, car.height/2 - 13, 3, 8); 
+
+    ctx.restore();
+  }
+
+  function drawMinimap() {
+    const mapSize = 150;
+    const mapX = 20;
+    const mapY = H - mapSize - 20;
+
+    ctx.save();
+    ctx.translate(mapX, mapY);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, mapSize, mapSize);
+    ctx.strokeStyle = '#f1c40f';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, mapSize, mapSize);
+
+    const scale = mapSize / WORLD_SIZE;
+
+    // Дороги на карте
+    ctx.fillStyle = '#333';
+    for (let rx of roadsX) ctx.fillRect((rx - ROAD_WIDTH/2) * scale, 0, ROAD_WIDTH * scale, mapSize);
+    for (let ry of roadsY) ctx.fillRect(0, (ry - ROAD_WIDTH/2) * scale, mapSize, ROAD_WIDTH * scale);
+
+    // Игрок (Синий)
+    ctx.fillStyle = '#3498db';
+    ctx.beginPath(); ctx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI*2); ctx.fill();
+
+    // Егор (Красный)
+    if (egor.state !== 'inCar') {
+      ctx.fillStyle = '#e74c3c';
+      ctx.beginPath(); ctx.arc(egor.x * scale, egor.y * scale, 3, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Точка назначения (Зеленая)
+    if (mission.active) {
+      ctx.fillStyle = '#2ecc71';
+      ctx.beginPath(); ctx.arc(mission.destX * scale, mission.destY * scale, 4, 0, Math.PI*2); ctx.fill();
+    }
+
     ctx.restore();
   }
 
@@ -376,6 +451,7 @@
     ctx.fillStyle = '#2d5a27'; ctx.fillRect(0, 0, W, H);
     ctx.save(); ctx.translate(-camera.x, -camera.y);
 
+    // Дороги
     ctx.fillStyle = '#333';
     for (let rx of roadsX) ctx.fillRect(rx - ROAD_WIDTH/2, 0, ROAD_WIDTH, WORLD_SIZE);
     for (let ry of roadsY) ctx.fillRect(0, ry - ROAD_WIDTH/2, WORLD_SIZE, ROAD_WIDTH);
@@ -385,6 +461,7 @@
     for (let ry of roadsY) { ctx.beginPath(); ctx.moveTo(0, ry); ctx.lineTo(WORLD_SIZE, ry); ctx.stroke(); }
     ctx.setLineDash([]);
 
+    // Деревья и кусты
     bushes.forEach(b => {
       if (b.x > camera.x - 50 && b.x < camera.x + W + 50 && b.y > camera.y - 50 && b.y < camera.y + H + 50) {
         ctx.fillStyle = '#1e4d1e'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
@@ -397,6 +474,7 @@
       }
     });
 
+    // Фонари
     lights.forEach(l => {
       if (l.x > camera.x - 50 && l.x < camera.x + W + 50 && l.y > camera.y - 50 && l.y < camera.y + H + 50) {
         ctx.fillStyle = '#555'; ctx.fillRect(l.x - 2, l.y - 20, 4, 40);
@@ -407,16 +485,33 @@
       }
     });
 
+    // Магазины (С крышей и дверью)
     shops.forEach(s => {
       if (s.x > camera.x - 300 && s.x < camera.x + W + 300 && s.y > camera.y - 300 && s.y < camera.y + H + 300) {
+        // Тень
+        ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(s.x + 10, s.y + 10, s.w, s.h);
+        // Стены
         ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h);
+        // Крыша (темнее)
+        ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(s.x, s.y, s.w, 40);
+        // Вывеска
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center';
-        ctx.fillText(s.name, s.x + s.w/2, s.y - 10);
-        ctx.fillStyle = '#333'; ctx.fillRect(s.x + s.w/2 - 20, s.y + s.h - 10, 40, 10);
+        ctx.fillText(s.name, s.x + s.w/2, s.y + 28);
+        // Дверь
+        ctx.fillStyle = '#111'; ctx.fillRect(s.x + s.w/2 - 25, s.y + s.h - 20, 50, 20);
       }
     });
 
+    // Линия до цели (если активна миссия)
     if (mission.active) {
+      // Пунктирная линия
+      ctx.strokeStyle = 'rgba(46, 204, 113, 0.6)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([15, 15]);
+      ctx.beginPath(); ctx.moveTo(car.x, car.y); ctx.lineTo(mission.destX, mission.destY); ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // Пульсирующая метка
       const pulse = Math.sin(Date.now() / 200) * 10 + 20;
       ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(mission.destX, mission.destY, pulse + 10, 0, Math.PI*2); ctx.stroke();
@@ -428,6 +523,9 @@
     drawCar();
 
     ctx.restore();
+
+    // Рисуем мини-карту поверх всего
+    drawMinimap();
   }
 
   function gameLoop() { update(); draw(); updateHUD(); requestAnimationFrame(gameLoop); }
