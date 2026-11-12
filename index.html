@@ -1,1 +1,173 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Симулятор Равиля</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1a1a1a url('bg-car.jpg') no-repeat center center;
+    background-size: cover;
+    height: 100vh;
+    font-family: system-ui, -apple-system, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  
+  .game-container {
+    background: rgba(15, 15, 20, 0.9);
+    border: 2px solid #333;
+    border-radius: 12px;
+    width: 90%; max-width: 700px;
+    padding: 20px;
+    color: #fff;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+  }
 
+  .stats {
+    display: flex; justify-content: space-between;
+    margin-bottom: 20px; font-size: 14px; font-weight: bold;
+  }
+  .stat { background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 5px; }
+  .stat span { color: #f1c40f; }
+
+  .text-box {
+    font-size: 16px; line-height: 1.6;
+    min-height: 120px; margin-bottom: 20px;
+  }
+
+  .choices {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .btn {
+    background: rgba(51, 51, 51, 0.8);
+    border: 1px solid #555;
+    color: #fff; padding: 12px;
+    border-radius: 8px; cursor: pointer;
+    text-align: left; font-size: 15px;
+    transition: 0.2s;
+  }
+  .btn:hover { background: #444; border-color: #fff; }
+  
+  .game-over {
+    text-align: center;
+  }
+  .game-over h2 { color: #e74c3c; margin-bottom: 10px; }
+  .restart-btn { background: #f1c40f; color: #000; font-weight: bold; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="game-container">
+  <div class="stats">
+    <div class="stat">Понты: <span id="stat-ponty">50</span></div>
+    <div class="stat">Деньги: <span id="stat-money">1000</span></div>
+    <div class="stat">Симпатия Егора: <span id="stat-egor">0</span></div>
+  </div>
+
+  <div class="text-box" id="text">Загрузка...</div>
+  
+  <div class="choices" id="choices"></div>
+</div>
+
+<script>
+  // Состояние игры
+  let state = {
+    ponty: 50,
+    money: 1000,
+    egor: 0,
+    step: 1
+  };
+
+  // Сюжет и выборы
+  const scenes = {
+    1: {
+      text: "Вы — Равиль. Вы сидите в своем черном BMW X4 у колледжа. На пассажирском сиденье жует бутерброд Егор. Вы хотите впечатлить девушку, которая идет мимо.",
+      choices: [
+        { text: "Выйти из машины, поправить очки и сказать: 'Эй, красавица! У меня X4!'", action: () => { state.ponty += 10; state.egor -= 5; state.money -= 50; next(2); } },
+        { text: "Спросить у Егора: 'Слушай, как думаешь, мне стоит с ней заговорить?'", action: () => { state.ponty -= 5; state.egor += 10; next(2); } },
+        { text: "Просто сидеть и смотреть, как она проходит мимо.", action: () => { state.ponty -= 10; state.egor += 5; next(2); } }
+      ]
+    },
+    2: {
+      text: "Девушка остановилась. Она смотрит на вас. Время замедлилось. Что вы сделаете?",
+      choices: [
+        { text: "Сказать: 'Прыгай в тачку, прокачу с ветерком!'", action: () => { state.ponty += 5; state.money -= 100; state.egor -= 10; next(3); } },
+        { text: "Спросить: 'Привет. Я Равиль. А ты? Что читаешь?'", action: () => { state.ponty -= 5; state.egor += 15; next(3); } },
+        { text: "Сделать вид, что вы просто ищете розетку для телефона.", action: () => { state.ponty -= 20; state.egor += 20; next(3); } }
+      ]
+    },
+    3: {
+      text: "Диалог подходит к концу. Егор смотрит на вас с надеждой. Как вы закончите разговор?",
+      choices: [
+        { text: "Сказать: 'Ладно, пока. У меня дела, надо проверить тачку.'", action: () => { state.ponty += 10; state.egor -= 15; next(4); } },
+        { text: "Сказать: 'Было круто поболтать. Может, как-нибудь пересечемся?'", action: () => { state.ponty -= 5; state.egor += 10; next(4); } }
+      ]
+    },
+    4: {
+      text: "Вы закончили разговор. Егор молча смотрит на вас. Вы понимаете, что это только начало.",
+      choices: [
+        { text: "Продолжить историю (следующая глава в разработке)...", action: () => { showGameOver(false); } }
+      ]
+    }
+  };
+
+  function next(step) {
+    state.step = step;
+    render();
+  }
+
+  function render() {
+    const scene = scenes[state.step];
+    document.getElementById('stat-ponty').textContent = state.ponty;
+    document.getElementById('stat-money').textContent = state.money;
+    document.getElementById('stat-egor').textContent = state.egor;
+
+    const textEl = document.getElementById('text');
+    textEl.textContent = scene.text;
+
+    const choicesEl = document.getElementById('choices');
+    choicesEl.innerHTML = '';
+    
+    if (state.money < 0) {
+      showGameOver(true, "Вы потратили все деньги на бензин и понты. X4 продан.");
+      return;
+    }
+    if (state.egor < -20) {
+      showGameOver(true, "Егор устал от ваших понтов и ушел. Вы остались один.");
+      return;
+    }
+
+    scene.choices.forEach(choice => {
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.textContent = choice.text;
+      btn.onclick = choice.action;
+      choicesEl.appendChild(btn);
+    });
+  }
+
+  function showGameOver(isFail, text) {
+    const textEl = document.getElementById('text');
+    const choicesEl = document.getElementById('choices');
+    choicesEl.innerHTML = '';
+    
+    if (isFail) {
+      textEl.innerHTML = `<div class="game-over"><h2>GAME OVER</h2><p>${text}</p></div>`;
+      const btn = document.createElement('button');
+      btn.className = 'btn restart-btn';
+      btn.textContent = 'Начать заново';
+      btn.onclick = () => { state = { ponty: 50, money: 1000, egor: 0, step: 1 }; render(); };
+      choicesEl.appendChild(btn);
+    } else {
+      textEl.innerHTML = `<div class="game-over"><h2>КОНЕЦ ДЕМО-ВЕРСИИ</h2><p>Спасибо за игру! Продолжение следует...</p></div>`;
+    }
+  }
+
+  // Запуск игры
+  render();
+</script>
+</body>
+</html>
