@@ -142,13 +142,13 @@
     if (!audioCtx || !engineOsc1) return;
     const baseFreq = 50;
     const maxFreq = 250;
-    const freq = baseFreq + (Math.abs(speed) / 20) * (maxFreq - baseFreq);
+    const freq = baseFreq + (Math.abs(speed) / 18) * (maxFreq - baseFreq);
     engineOsc1.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
     engineOsc2.frequency.setTargetAtTime(freq * 0.5, audioCtx.currentTime, 0.1);
     engineFilter.frequency.setTargetAtTime(300 + (Math.abs(speed) * 30), audioCtx.currentTime, 0.1);
   }
 
-  // --- ЧАСТИЦЫ (ВЫХЛОП И ДЫМ ОТ ШИН) ---
+  // --- ЧАСТИЦЫ ---
   let particles = [];
   let skidmarks = [];
 
@@ -168,11 +168,10 @@
     osc.start();
     osc.stop(audioCtx.currentTime + 0.2);
 
-    // Визуальный выхлоп
     const rearX = car.x - Math.cos(car.angle) * (car.width/2);
     const rearY = car.y - Math.sin(car.angle) * (car.width/2);
     
-    for(let i=0; i<8; i++) {
+    for(let i=0; i<10; i++) {
       particles.push({
         x: rearX + (Math.random() - 0.5) * 15,
         y: rearY + (Math.random() - 0.5) * 15,
@@ -196,24 +195,23 @@
 
   const player = { 
     x: 5000, y: 5300, angle: -Math.PI/2, speed: 0, 
-    walkSpeed: 1.2, sprintSpeed: 4.5, 
-    accel: 0.1, friction: 0.85, turnSpeed: 0.15, 
+    walkSpeed: 1.0, sprintSpeed: 2.0, // Скорость бега на Shift = 2.0
+    accel: 0.08, friction: 0.85, turnSpeed: 0.15, 
     color: '#3498db', name: "Равиль", walkCycle: 0,
     stamina: 100, maxStamina: 100, isSprinting: false
   };
   
-  const egor = { x: 4900, y: 5200, speed: 2, color: '#e74c3c', name: "Егор", state: 'idle', walkCycle: 0 };
+  const egor = { x: 4900, y: 5200, speed: 1.5, color: '#e74c3c', name: "Егор", state: 'idle', walkCycle: 0, angle: 0 };
   
-  // МАШИНА С ВЕКТОРНОЙ ФИЗИКОЙ
+  // РЕАЛИСТИЧНАЯ ФИЗИКА МАШИНЫ
   const car = { 
     x: 5000, y: 5000, angle: -Math.PI/2, 
-    vx: 0, vy: 0, // Вектор скорости
-    speed: 0, // Проекция скорости вперед
-    maxSpeed: 25, 
-    accel: 0.4, 
-    turnSpeed: 0.06, 
-    grip: 0.15, // Сцепление (чем меньше, тем сильнее занос)
-    drag: 0.95, // Сопротивление воздуха
+    vx: 0, vy: 0, speed: 0, 
+    maxSpeed: 18, // Меньше макс скорость
+    accel: 0.08,  // Очень плавный разгон
+    turnSpeed: 0.025, // Медленный поворот
+    grip: 0.1,    // Сцепление (занос)
+    drag: 0.96,   // Сопротивление воздуха
     width: 150, height: 75,
     color: '#0a0a0a',
     isEngineOn: false, lastGear: 0 
@@ -353,7 +351,6 @@
   function update() {
     if (gameState.activePanel) return;
 
-    // Обновление частиц и следов
     for(let i = particles.length - 1; i >= 0; i--) {
       let p = particles[i];
       p.x += p.vx; p.y += p.vy;
@@ -370,7 +367,8 @@
       let dist = Math.hypot(dx, dy);
       if (dist > 70) {
         egor.x += (dx / dist) * egor.speed; egor.y += (dy / dist) * egor.speed;
-        egor.walkCycle += egor.speed * 0.1;
+        egor.walkCycle += egor.speed * 0.15;
+        egor.angle = Math.atan2(dy, dx);
       } else {
         egor.state = 'inCar'; mission.active = true;
         let safeDist = false;
@@ -401,77 +399,70 @@
 
     if (gameState.inCar) {
       if (car.isEngineOn) {
-        // 1. Прикладываем силу двигателя (ускорение)
+        // 1. Сила двигателя
         let engineForce = 0;
         if (isUp()) engineForce = car.accel;
-        if (isDown()) engineForce = -car.accel * 0.6; // Задний ход слабее
+        if (isDown()) engineForce = -car.accel * 0.5;
 
-        // Добавляем силу к вектору скорости по направлению машины
         car.vx += Math.cos(car.angle) * engineForce;
         car.vy += Math.sin(car.angle) * engineForce;
 
-        // 2. Руление (только если машина движется)
+        // 2. Руление (сопротивление на высокой скорости)
         car.speed = car.vx * Math.cos(car.angle) + car.vy * Math.sin(car.angle);
         if (Math.abs(car.speed) > 0.5) {
-          // Чем быстрее едем, тем меньше угол поворота (чтобы не улететь в занос)
-          let turnFactor = Math.min(1, Math.abs(car.speed) / 10);
+          let turnFactor = Math.min(1, Math.abs(car.speed) / 15); // Чем быстрее, тем тяжелее руль
           let currentTurn = car.turnSpeed * turnFactor;
           
           if (isLeft()) car.angle -= currentTurn * (car.speed > 0 ? 1 : -1);
           if (isRight()) car.angle += currentTurn * (car.speed > 0 ? 1 : -1);
         }
 
-        // 3. Сцепление с дорогой (Трение шин)
-        // Вычисляем переднее и боковое направления
+        // 3. Сцепление шин и занос
         let forwardX = Math.cos(car.angle);
         let forwardY = Math.sin(car.angle);
         let rightX = Math.cos(car.angle + Math.PI/2);
         let rightY = Math.sin(car.angle + Math.PI/2);
 
-        // Раскладываем скорость на переднюю и боковую
         let vForward = car.vx * forwardX + car.vy * forwardY;
         let vLateral = car.vx * rightX + car.vy * rightY;
 
-        // Гасим боковую скорость (сцепление шин)
-        // Если боковая скорость большая - машину заносит
-        if (Math.abs(vLateral) > 3) {
-           // Оставляем следы от шин
+        // Следы от шин (если сильно заносит)
+        if (Math.abs(vLateral) > 2 && Math.abs(car.speed) > 3) {
            skidmarks.push({ x: car.x, y: car.y, angle: car.angle, life: 1 });
         }
-        vLateral *= car.grip; 
+        
+        vLateral *= car.grip; // Гасим боковую скорость
+        vForward *= 0.98; // Сопротивление качению
 
-        // Собираем вектор обратно
         car.vx = vForward * forwardX + vLateral * rightX;
         car.vy = vForward * forwardY + vLateral * rightY;
 
-        // 4. Сопротивление среды (воздух, дорога)
+        // 4. Сопротивление воздуха
         car.vx *= car.drag;
         car.vy *= car.drag;
 
-        // 5. Ограничение максимальной скорости
+        // 5. Макс скорость
         let currentSpeed = Math.hypot(car.vx, car.vy);
         if (currentSpeed > car.maxSpeed) {
           car.vx = (car.vx / currentSpeed) * car.maxSpeed;
           car.vy = (car.vy / currentSpeed) * car.maxSpeed;
         }
 
-        // Выхлоп (при переключении)
-        let gear = Math.floor(currentSpeed / 5);
+        // Выхлоп (порог снижен до 3 единиц)
+        let gear = Math.floor(Math.abs(car.speed) / 3);
         if (gear > car.lastGear && car.speed > 0) playExhaustPop();
         car.lastGear = gear;
 
-        // Двигаем
         car.x += car.vx;
         car.y += car.vy;
 
-        updateEngineSound(currentSpeed);
+        updateEngineSound(car.speed);
       } else {
         car.speed = 0; car.vx = 0; car.vy = 0; car.lastGear = 0;
       }
       player.x = car.x; player.y = car.y;
       player.stamina = Math.min(player.maxStamina, player.stamina + 1);
     } else {
-      // Пешеход
       let dx = 0, dy = 0;
       if (isUp()) dy -= 1; if (isDown()) dy += 1;
       if (isLeft()) dx -= 1; if (isRight()) dx += 1;
@@ -487,14 +478,14 @@
         if (keys['shift'] && player.stamina > 0) {
           player.isSprinting = true;
           player.stamina -= 0.8;
-          player.speed += player.accel * 1.5;
+          player.speed += player.accel;
           if (player.speed > player.sprintSpeed) player.speed = player.sprintSpeed;
         } else {
           player.isSprinting = false;
           player.speed += player.accel;
           if (player.speed > player.walkSpeed) player.speed = player.walkSpeed;
         }
-        player.walkCycle += player.speed * 0.2;
+        player.walkCycle += player.speed * 0.3;
       } else {
         player.isSprinting = false;
         player.speed *= player.friction;
@@ -551,60 +542,82 @@
     else { hint.style.display = 'none'; }
   }
 
-  // --- ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ОТРИСОВКА ЧЕЛОВЕЧКА ---
+  // --- ОТРИСОВКА ЧЕЛОВЕЧКА (4 СТОРОНЫ СВЕТА) ---
   function drawHuman(x, y, color, name, walkCycle, isRavil, angle) {
     ctx.save(); 
     ctx.translate(x, y); 
     
-    // Тень (всегда под ногами, не вращается)
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; 
     ctx.beginPath(); ctx.ellipse(0, 0, 18, 9, 0, 0, Math.PI*2); ctx.fill();
     
-    // Крутим тело в сторону движения
-    ctx.rotate(angle + Math.PI/2); 
+    let swing = Math.sin(walkCycle) * 6;
 
-    let swing = Math.sin(walkCycle) * 8;
-    
+    // Определяем направление взгляда (0 = вниз, 1 = влево, 2 = вверх, 3 = вправо)
+    let dir = 0; 
+    let a = (angle + Math.PI * 2) % (Math.PI * 2);
+    if (a > Math.PI * 0.25 && a < Math.PI * 0.75) dir = 0; // Вниз
+    else if (a >= Math.PI * 0.75 && a < Math.PI * 1.25) dir = 1; // Влево
+    else if (a >= Math.PI * 1.25 && a < Math.PI * 1.75) dir = 2; // Вверх
+    else dir = 3; // Вправо
+
     // Ноги
     ctx.fillStyle = '#2c3e50'; 
-    ctx.fillRect(-12, -8 + swing, 9, 14); 
-    ctx.fillRect(3, -8 - swing, 9, 14);   
-
-    // Руки
-    ctx.fillStyle = '#fcd0b3'; 
-    ctx.fillRect(-18, -28 - swing, 6, 16); 
-    ctx.fillRect(12, -28 + swing, 6, 16);  
+    if (dir === 0) { // Вниз
+        ctx.fillRect(-10, -6 + swing, 8, 14);
+        ctx.fillRect(2, -6 - swing, 8, 14);
+    } else if (dir === 2) { // Вверх
+        ctx.fillRect(-10, -8 + swing, 8, 14);
+        ctx.fillRect(2, -8 - swing, 8, 14);
+    } else { // Влево/Вправо
+        ctx.fillRect(-6 + swing, -4, 12, 10);
+    }
 
     // Тело
     ctx.fillStyle = color; 
     ctx.fillRect(-12, -32, 24, 26); 
-    
+
+    // Руки
+    ctx.fillStyle = '#fcd0b3'; 
+    if (dir === 0 || dir === 2) {
+        ctx.fillRect(-18, -28 - swing, 6, 16);
+        ctx.fillRect(12, -28 + swing, 6, 16);
+    } else {
+        ctx.fillRect(-18, -24 + swing, 6, 16);
+        ctx.fillRect(12, -24 - swing, 6, 16);
+    }
+
     // Голова
     ctx.fillStyle = '#fcd0b3'; 
     ctx.beginPath(); ctx.arc(0, -46, 14, 0, Math.PI*2); ctx.fill();
-    
-    // Глаза (нарисованы ровно, холст повернут)
-    ctx.fillStyle = '#000';
-    ctx.fillRect(-6, -50, 4, 4); 
-    ctx.fillRect(2, -50, 4, 4);
 
+    // Прически и глаза (в зависимости от направления)
     if (isRavil) {
-      // Прическа Равиля (гель)
-      ctx.fillStyle = '#111'; 
-      ctx.beginPath(); ctx.arc(0, -52, 14, Math.PI, 0); ctx.fill();
-      // Очки
-      ctx.fillStyle = 'rgba(0,0,0,0.8)';
-      ctx.fillRect(-8, -51, 16, 6);
+        ctx.fillStyle = '#111';
+        if (dir === 0) { // Вниз
+            ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill();
+            ctx.fillStyle = '#111'; ctx.fillRect(-10, -48, 20, 6); // Очки
+        } else if (dir === 2) { // Вверх (спиной)
+            ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill();
+        } else { // Боком
+            ctx.fillRect(dir === 3 ? 0 : -12, -48, 12, 6); // Очки сбоку
+            ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill();
+        }
     } else {
-      // Прическа Егора
-      ctx.fillStyle = '#8B4513'; 
-      ctx.beginPath(); ctx.arc(-4, -54, 10, Math.PI, 0); ctx.fill();
-      ctx.beginPath(); ctx.arc(4, -52, 10, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#8B4513';
+        ctx.beginPath(); ctx.arc(-4, -50, 10, Math.PI, 0); ctx.fill();
+        ctx.beginPath(); ctx.arc(4, -48, 10, Math.PI, 0); ctx.fill();
+        
+        if (dir === 0) { // Вниз (глаза)
+            ctx.fillStyle = '#000'; ctx.fillRect(-8, -48, 3, 3); ctx.fillRect(5, -48, 3, 3);
+        } else if (dir === 3) { // Вправо
+            ctx.fillStyle = '#000'; ctx.fillRect(6, -48, 3, 3);
+        } else if (dir === 1) { // Влево
+            ctx.fillStyle = '#000'; ctx.fillRect(-9, -48, 3, 3);
+        }
     }
     
     ctx.restore();
     
-    // Имя (не вращается)
     ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; 
     ctx.fillText(name, x, y - 75);
   }
@@ -619,24 +632,20 @@
 
     ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
     
-    // Колеса
     ctx.fillStyle = '#111';
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(30, -car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(-55, car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(30, car.height/2 - 7, 28, 14, 4); ctx.fill();
 
-    // Кузов
     ctx.beginPath(); ctx.roundRect(-car.width/2, -car.height/2 + 5, car.width, car.height - 10, 20);
     ctx.fillStyle = car.color; ctx.fill();
     ctx.strokeStyle = '#222'; ctx.lineWidth = 3; ctx.stroke();
 
-    // Сиденья
     ctx.fillStyle = '#222';
     ctx.beginPath(); ctx.roundRect(-30, -25, 60, 20, 5); ctx.fill(); 
     ctx.beginPath(); ctx.roundRect(-30, 5, 60, 20, 5); ctx.fill(); 
 
-    // Люди внутри
     if (gameState.inCar) {
       ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, -15, 8, 0, Math.PI*2); ctx.fill();
     }
@@ -644,16 +653,13 @@
       ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, 15, 8, 0, Math.PI*2); ctx.fill();
     }
 
-    // СТЕКЛА (Поверх людей)
     ctx.fillStyle = 'rgba(20, 30, 40, 0.75)'; 
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 + 12, 100, car.height - 24, 15); ctx.fill();
     
-    // Рамки
     ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-35, -car.height/2 + 12); ctx.lineTo(-35, car.height/2 - 12); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(20, -car.height/2 + 12); ctx.lineTo(20, car.height/2 - 12); ctx.stroke();
 
-    // Фары
     if (car.isEngineOn) {
       ctx.fillStyle = '#e0f7fa'; 
       ctx.fillRect(car.width/2 - 3, -car.height/2 + 8, 5, 12); 
@@ -752,7 +758,6 @@
       ctx.fillStyle = 'rgba(46, 204, 113, 0.3)'; ctx.beginPath(); ctx.arc(mission.destX, mission.destY, pulse, 0, Math.PI*2); ctx.fill();
     }
 
-    // Отрисовка следов от шин
     skidmarks.forEach(mark => {
       ctx.save();
       ctx.translate(mark.x, mark.y);
@@ -763,7 +768,8 @@
       ctx.restore();
     });
 
-    if (egor.state !== 'inCar') drawHuman(egor.x, egor.y, egor.color, egor.name, egor.walkCycle, false, 0);
+    // Отрисовка людей
+    if (egor.state !== 'inCar') drawHuman(egor.x, egor.y, egor.color, egor.name, egor.walkCycle, false, egor.angle);
     if (!gameState.inCar) drawHuman(player.x, player.y, player.color, player.name, player.walkCycle, true, player.angle);
     
     drawCar();
