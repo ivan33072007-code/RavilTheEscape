@@ -161,7 +161,7 @@
 
     const now = audioCtx.currentTime;
 
-    // 1. Низкий бас (БУМ)
+    // Низкий бас
     const osc = audioCtx.createOscillator();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(80, now);
@@ -170,7 +170,7 @@
     oscGain.gain.setValueAtTime(1.5, now);
     oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
 
-    // 2. Шум (ПЩЩ)
+    // Шум (пщщ)
     const bufferSize = audioCtx.sampleRate * 0.1;
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -224,13 +224,13 @@
     accel: 0.08, friction: 0.85, turnSpeed: 0.15, 
     color: '#3498db', name: "Равиль", walkCycle: 0,
     stamina: 100, maxStamina: 100, isSprinting: false,
-    radius: 15 // ХИТБОКС ИГРОКА
+    radius: 15 
   };
   
   const egor = { 
     x: 4900, y: 5200, speed: 1.5, color: '#e74c3c', name: "Егор", 
     state: 'idle', walkCycle: 0, angle: 0,
-    radius: 15 // ХИТБОКС ЕГОРА
+    radius: 15 
   };
   
   const car = { 
@@ -377,20 +377,39 @@
     }
   }
 
-  // --- МАТЕМАТИЧЕСКИ ТОЧНАЯ ПРОВЕРКА КОЛЛИЗИЙ (Круг vs Прямоугольник) ---
-  function checkCollision(x, y, radius) {
+  // --- НОВАЯ СИСТЕМА КОЛЛИЗИЙ ---
+  // Машина теперь состоит из трех кругов (перед, центр, зад)
+  function getCarCircles() {
+    return [
+      { x: car.x + Math.cos(car.angle) * 45, y: car.y + Math.sin(car.angle) * 45, r: 35 }, // Перед
+      { x: car.x, y: car.y, r: 40 }, // Центр
+      { x: car.x - Math.cos(car.angle) * 45, y: car.y - Math.sin(car.angle) * 45, r: 35 }  // Зад
+    ];
+  }
+
+  // Столкновение машины с магазинами
+  function carHitsShop() {
+    let circles = getCarCircles();
     for (let s of shops) {
-      // Находим ближайшую точку прямоугольника к центру круга
-      let closestX = Math.max(s.x, Math.min(x, s.x + s.w));
-      let closestY = Math.max(s.y, Math.min(y, s.y + s.h));
-      
-      let dx = x - closestX;
-      let dy = y - closestY;
-      
-      // Если расстояние меньше радиуса - коллизия
-      if ((dx * dx + dy * dy) < (radius * radius)) {
-        return true;
+      for (let c of circles) {
+        let closestX = Math.max(s.x, Math.min(c.x, s.x + s.w));
+        let closestY = Math.max(s.y, Math.min(c.y, s.y + s.h));
+        let dx = c.x - closestX;
+        let dy = c.y - closestY;
+        if ((dx * dx + dy * dy) < (c.r * c.r)) return true;
       }
+    }
+    return false;
+  }
+
+  // Столкновение машины с Егором
+  function carHitsEgor() {
+    if (egor.state === 'inCar') return false;
+    let circles = getCarCircles();
+    for (let c of circles) {
+      let dx = c.x - egor.x;
+      let dy = c.y - egor.y;
+      if (Math.hypot(dx, dy) < c.r + egor.radius) return true;
     }
     return false;
   }
@@ -409,19 +428,26 @@
       if(skidmarks[i].life <= 0) skidmarks.splice(i, 1);
     }
 
-    // --- ЛОГИКА ЕГОРА ---
     if (egor.state === 'walking') {
       let dx = car.x - egor.x; let dy = car.y - egor.y;
       let dist = Math.hypot(dx, dy);
       if (dist > 70) {
         let nextEx = egor.x + (dx / dist) * egor.speed;
         let nextEy = egor.y + (dy / dist) * egor.speed;
-        // Егор не проходит сквозь машину
-        if (Math.hypot(nextEx - car.x, nextEy - car.y) > 50) {
-           egor.x = nextEx; egor.y = nextEy;
+        
+        // Егор не может пройти сквозь машину
+        let egorHitCar = false;
+        for (let c of getCarCircles()) {
+          if (Math.hypot(nextEx - c.x, nextEy - c.y) < c.r + egor.radius) {
+             egorHitCar = true; break;
+          }
         }
-        egor.walkCycle += egor.speed * 0.15;
-        egor.angle = Math.atan2(dy, dx);
+        
+        if (!egorHitCar) {
+           egor.x = nextEx; egor.y = nextEy;
+           egor.walkCycle += egor.speed * 0.15;
+           egor.angle = Math.atan2(dy, dx);
+        }
       } else {
         egor.state = 'inCar'; mission.active = true;
         let safeDist = false;
@@ -508,8 +534,8 @@
         car.x += car.vx;
         car.y += car.vy;
 
-        // Идеальная коллизия машины (радиус 55 для точности)
-        if (checkCollision(car.x, car.y, 55)) {
+        // Проверка столкновений машины (магазины и Егор)
+        if (carHitsShop() || carHitsEgor()) {
           car.x = prevCarX;
           car.y = prevCarY;
           car.vx = 0; car.vy = 0; car.speed = 0;
@@ -530,11 +556,9 @@
         const len = Math.hypot(dx, dy); dx /= len; dy /= len;
         let targetAngle = Math.atan2(dy, dx);
         let angleDiff = targetAngle - player.angle;
-        // Нормализация угла для избежания багов
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
         
-        // Плавный доворот
         if (Math.abs(angleDiff) > 0.05) {
             player.angle += angleDiff * player.turnSpeed;
         } else {
@@ -567,30 +591,31 @@
       player.x += Math.cos(player.angle) * player.speed;
       player.y += Math.sin(player.angle) * player.speed;
 
-      // Коллизия с магазинами
-      if (checkCollision(player.x, player.y, player.radius)) {
-        player.x = prevPlayerX;
-        player.y = prevPlayerY;
+      let hitWall = false;
+      // Столкновение с магазинами
+      for (let s of shops) {
+        let closestX = Math.max(s.x, Math.min(player.x, s.x + s.w));
+        let closestY = Math.max(s.y, Math.min(player.y, s.y + s.h));
+        let dx = player.x - closestX; let dy = player.y - closestY;
+        if ((dx * dx + dy * dy) < (player.radius * player.radius)) hitWall = true;
+      }
+      
+      // Столкновение с машиной
+      for (let c of getCarCircles()) {
+        if (Math.hypot(player.x - c.x, player.y - c.y) < c.r + player.radius) hitWall = true;
       }
 
-      // Коллизия с машиной
-      const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
-      if (distToCar < 75) { 
-        player.x = prevPlayerX;
-        player.y = prevPlayerY;
-      }
-
-      // Коллизия с Егором
+      // Столкновение с Егором
       if (egor.state !== 'inCar') {
-        const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
-        if (distToEgor < player.radius + egor.radius) {
-          player.x = prevPlayerX;
-          player.y = prevPlayerY;
-        }
+        if (Math.hypot(player.x - egor.x, player.y - egor.y) < player.radius + egor.radius) hitWall = true;
+      }
+
+      if (hitWall) {
+        player.x = prevPlayerX;
+        player.y = prevPlayerY;
       }
     }
 
-    // Ограничение мира
     if (player.x < 0) player.x = 0;
     if (player.y < 0) player.y = 0;
     if (player.x > WORLD_SIZE) player.x = WORLD_SIZE;
@@ -631,7 +656,6 @@
     else { hint.style.display = 'none'; }
   }
 
-  // --- ПЛАВНАЯ АНИМАЦИЯ (С ЗАЩИТОЙ ОТ БАГОВ УГЛА) ---
   function drawHuman(x, y, color, name, walkCycle, isRavil, angle) {
     ctx.save(); 
     ctx.translate(x, y); 
@@ -639,16 +663,14 @@
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; 
     ctx.beginPath(); ctx.ellipse(0, 0, 18, 9, 0, 0, Math.PI*2); ctx.fill();
     
-    // Защита от NaN и кривых углов
     let safeAngle = isNaN(angle) ? -Math.PI/2 : angle;
     let a = (safeAngle + Math.PI * 2) % (Math.PI * 2);
     let angleDeg = a * 180 / Math.PI;
 
-    let dir = 3; // По умолчанию вправо
-    if (angleDeg >= 45 && angleDeg < 135) dir = 0; // Вниз
-    else if (angleDeg >= 135 && angleDeg < 225) dir = 1; // Влево
-    else if (angleDeg >= 225 && angleDeg < 315) dir = 2; // Вверх
-    // 315-360 и 0-45 это dir=3 (Вправо)
+    let dir = 3; 
+    if (angleDeg >= 45 && angleDeg < 135) dir = 0; 
+    else if (angleDeg >= 135 && angleDeg < 225) dir = 1; 
+    else if (angleDeg >= 225 && angleDeg < 315) dir = 2; 
 
     let swing = Math.sin(walkCycle) * 0.6;
 
@@ -709,7 +731,6 @@
     ctx.fillText(name, x, y - 75);
   }
 
-  // --- ЧИСТАЯ ТЕКСТУРА МАШИНЫ ---
   function drawCar() {
     ctx.save();
     ctx.translate(car.x + 20, car.y + 20); 
@@ -720,21 +741,18 @@
 
     ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
     
-    // Колеса
     ctx.fillStyle = '#111';
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(30, -car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(-55, car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(30, car.height/2 - 7, 28, 14, 4); ctx.fill();
 
-    // Кузов (градиент)
     let grad = ctx.createLinearGradient(0, -car.height/2, 0, car.height/2);
     grad.addColorStop(0, '#222'); grad.addColorStop(0.5, '#050505'); grad.addColorStop(1, '#222');
     ctx.beginPath(); ctx.roundRect(-car.width/2, -car.height/2 + 5, car.width, car.height - 10, 20);
     ctx.fillStyle = grad; ctx.fill();
     ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.stroke();
 
-    // Сиденья внутри
     ctx.fillStyle = '#1a1a1a';
     ctx.beginPath(); ctx.roundRect(-30, -25, 60, 20, 5); ctx.fill(); 
     ctx.beginPath(); ctx.roundRect(-30, 5, 60, 20, 5); ctx.fill(); 
@@ -746,7 +764,6 @@
       ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, 15, 8, 0, Math.PI*2); ctx.fill();
     }
 
-    // Стекла
     ctx.fillStyle = 'rgba(20, 30, 40, 0.75)'; 
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 + 12, 100, car.height - 24, 15); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.1)';
