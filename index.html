@@ -18,11 +18,11 @@
   #settings-btn { position: absolute; top: 20px; right: 20px; pointer-events: auto; width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: 0.2s; }
   #settings-btn:hover { background: #fff; color: #000; }
   
-  #settings-panel { position: absolute; top: 80px; right: 20px; pointer-events: auto; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 10px; z-index: 200; width: 320px; }
+  #settings-panel { position: absolute; top: 80px; right: 20px; pointer-events: auto; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 10px; z-index: 200; width: 340px; }
   #settings-panel h3 { color: #f1c40f; margin-bottom: 10px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
-  .control-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; align-items: center;}
+  .control-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; align-items: center; }
   .key { background: #333; padding: 2px 8px; border-radius: 4px; border: 1px solid #555; font-weight: bold; color: #f1c40f; }
-  input[type=range] { width: 100px; cursor: pointer; }
+  input[type=range] { width: 120px; cursor: pointer; }
 
   #interaction-hint { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #f1c40f; padding: 10px 20px; border-radius: 20px; font-weight: bold; border: 1px solid #f1c40f; display: none; pointer-events: auto; text-shadow: 0 1px 2px #000; text-align: center; }
 
@@ -49,14 +49,18 @@
   <button id="settings-btn" onclick="toggleSettings()">⚙️</button>
 
   <div id="settings-panel">
-    <h3>Управление (ПК)</h3>
+    <h3>Настройки</h3>
     <div class="control-row"><span>Движение:</span> <span><span class="key">W</span> <span class="key">A</span> <span class="key">S</span> <span class="key">D</span></span></div>
     <div class="control-row"><span>Завести / Заглушить:</span> <span><span class="key">Q</span></span></div>
-    <div class="control-row"><span>Вкл/Выкл музыку:</span> <span><span class="key">M</span></span></div>
+    <div class="control-row"><span>Музыка (Вкл/Выкл):</span> <span><span class="key">M</span></span></div>
     <div class="control-row"><span>Действие / Позвать:</span> <span><span class="key">E</span> / <span class="key">Пробел</span></span></div>
     <div class="control-row"><span>Выйти из машины:</span> <span><span class="key">F</span></span></div>
+    
     <div class="control-row" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
-      <span>Музыка:</span> <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.5">
+      <span>Музыка:</span> <input type="range" id="vol-music" min="0" max="1" step="0.05" value="0.3">
+    </div>
+    <div class="control-row">
+      <span>Звук игры:</span> <input type="range" id="vol-game" min="0" max="1" step="0.05" value="0.5">
     </div>
   </div>
 
@@ -83,45 +87,47 @@
   function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
   window.addEventListener('resize', resize); resize();
 
-  // Настройка громкости музыки
-  document.getElementById('volume-slider').addEventListener('input', (e) => {
-    bgMusic.volume = e.target.value;
-  });
-
-  // --- СИНТЕЗАТОР ЗВУКА МОТОРА (Web Audio API) ---
-  let audioCtx, engineOsc1, engineOsc2, engineGain, engineFilter;
-  function initEngineSound() {
+  // --- АУДИО СИСТЕМА ---
+  let audioCtx, masterGain, engineOsc1, engineOsc2, engineGain, engineFilter;
+  
+  function initAudio() {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0.5;
+      masterGain.connect(audioCtx.destination);
+
       engineOsc1 = audioCtx.createOscillator();
       engineOsc2 = audioCtx.createOscillator();
       engineGain = audioCtx.createGain();
       engineFilter = audioCtx.createBiquadFilter();
 
-      // Настройки волн для басовитого рокота
       engineOsc1.type = 'sawtooth';
       engineOsc2.type = 'square';
-      engineOsc2.detune.value = 10; // Небольшое расхождение для "неровного" звука
+      engineOsc2.detune.value = 15; 
 
       engineFilter.type = 'lowpass';
-      engineFilter.frequency.value = 400; // Обрезаем высокие частоты
+      engineFilter.frequency.value = 400;
 
       engineOsc1.connect(engineFilter);
       engineOsc2.connect(engineFilter);
       engineFilter.connect(engineGain);
-      engineGain.connect(audioCtx.destination);
+      engineGain.connect(masterGain);
 
       engineOsc1.start();
       engineOsc2.start();
-      engineGain.gain.value = 0; // Изначально тихо
+      engineGain.gain.value = 0;
     }
   }
 
+  document.getElementById('vol-music').addEventListener('input', (e) => { bgMusic.volume = e.target.value; });
+  document.getElementById('vol-game').addEventListener('input', (e) => { if(masterGain) masterGain.gain.value = e.target.value; });
+
   function startEngineSound() {
-    initEngineSound();
+    initAudio();
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    engineGain.gain.setTargetAtTime(0.08, audioCtx.currentTime, 0.2);
+    engineGain.gain.setTargetAtTime(0.15, audioCtx.currentTime, 0.2);
   }
 
   function stopEngineSound() {
@@ -130,15 +136,29 @@
 
   function updateEngineSound(speed) {
     if (!audioCtx || !engineOsc1) return;
-    const baseFreq = 40;
-    const maxFreq = 180;
-    // Чем выше скорость, тем выше тон
+    const baseFreq = 50;
+    const maxFreq = 250;
     const freq = baseFreq + (Math.abs(speed) / car.maxSpeed) * (maxFreq - baseFreq);
     
     engineOsc1.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
     engineOsc2.frequency.setTargetAtTime(freq * 0.5, audioCtx.currentTime, 0.1);
-    // Открываем фильтр на высоких оборотах
-    engineFilter.frequency.setTargetAtTime(300 + (Math.abs(speed) * 25), audioCtx.currentTime, 0.1);
+    engineFilter.frequency.setTargetAtTime(300 + (Math.abs(speed) * 30), audioCtx.currentTime, 0.1);
+  }
+
+  function playExhaustPop() {
+    if(!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.15);
   }
 
   const WORLD_SIZE = 10000; 
@@ -150,14 +170,16 @@
   let stats = { money: 1000, mood: 50 };
   let mission = { active: false, destX: 0, destY: 0 };
 
-  const player = { x: 5000, y: 5300, angle: -Math.PI/2, speed: 0, maxSpeed: 3.5, accel: 0.25, friction: 0.8, turnSpeed: 0.2, color: '#3498db', name: "Равиль" };
-  const egor = { x: 4900, y: 5200, speed: 3, color: '#e74c3c', name: "Егор", state: 'idle' };
+  // Добавлен walkCycle для анимации ног
+  const player = { x: 5000, y: 5300, angle: -Math.PI/2, speed: 0, maxSpeed: 3.5, accel: 0.25, friction: 0.8, turnSpeed: 0.15, color: '#3498db', name: "Равиль", walkCycle: 0 };
+  const egor = { x: 4900, y: 5200, speed: 3, color: '#e74c3c', name: "Егор", state: 'idle', walkCycle: 0 };
   
+  // Физика машины сделана более плавной
   const car = { 
     x: 5000, y: 5000, angle: -Math.PI/2, speed: 0, 
-    maxSpeed: 25, accel: 0.5, friction: 0.95, turnSpeed: 0.05, 
-    width: 100, height: 50, color: '#000',
-    isEngineOn: false 
+    maxSpeed: 25, accel: 0.15, friction: 0.97, turnSpeed: 0.03, // Плавнее
+    width: 120, height: 60, color: '#0a0a0a',
+    isEngineOn: false, lastGear: 0 
   };
   
   const camera = { x: 0, y: 0 };
@@ -188,17 +210,14 @@
       let by = Math.random() * WORLD_SIZE;
       if (!isOnRoad(bx, by)) bushes.push({ x: bx, y: by, r: 15 + Math.random()*10 });
     }
-    
     const lightOffset = ROAD_WIDTH/2 + 50;
     const step = 400;
-
     for (let rx of roadsX) {
       for (let y = 0; y < WORLD_SIZE; y += step) {
         let isIntersection = false;
         for (let ry of roadsY) { if (Math.abs(y - ry) < lightOffset) isIntersection = true; }
         if (!isIntersection) {
-          lights.push({ x: rx - lightOffset, y: y });
-          lights.push({ x: rx + lightOffset, y: y });
+          lights.push({ x: rx - lightOffset, y: y }); lights.push({ x: rx + lightOffset, y: y });
         }
       }
     }
@@ -207,8 +226,7 @@
         let isIntersection = false;
         for (let rx of roadsX) { if (Math.abs(x - rx) < lightOffset) isIntersection = true; }
         if (!isIntersection) {
-          lights.push({ x: x, y: ry - lightOffset });
-          lights.push({ x: x, y: ry + lightOffset });
+          lights.push({ x: x, y: ry - lightOffset }); lights.push({ x: x, y: ry + lightOffset });
         }
       }
     }
@@ -221,26 +239,10 @@
   window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
     keys[key] = true;
-    
-    if (key === ' ' || key === 'e' || key === 'у') {
-      if (!gameState.activePanel) interact();
-      e.preventDefault();
-    }
-    if (key === 'f' || key === 'а') {
-      if (!gameState.activePanel) exitCarOrEject();
-      e.preventDefault();
-    }
-    if (key === 'q' || key === 'й') {
-      if (gameState.inCar && !gameState.activePanel) toggleEngine();
-      e.preventDefault();
-    }
-    if (key === 'm' || key === 'ь') {
-      if (gameState.inCar) {
-        bgMusic.muted = !bgMusic.muted;
-      }
-      e.preventDefault();
-    }
-    
+    if (key === ' ' || key === 'e' || key === 'у') { if (!gameState.activePanel) interact(); e.preventDefault(); }
+    if (key === 'f' || key === 'а') { if (!gameState.activePanel) exitCarOrEject(); e.preventDefault(); }
+    if (key === 'q' || key === 'й') { if (gameState.inCar && !gameState.activePanel) toggleEngine(); e.preventDefault(); }
+    if (key === 'm' || key === 'ь') { if (gameState.inCar) bgMusic.muted = !bgMusic.muted; e.preventDefault(); }
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) e.preventDefault();
   });
   window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
@@ -274,26 +276,18 @@
 
   function interact() {
     if (gameState.activePanel) return;
-
     if (gameState.inCar) {
       const dist = Math.hypot(car.x - egor.x, car.y - egor.y);
       if (egor.state === 'idle' && dist < 250) egor.state = 'walking';
       return;
     }
-
     for(let shop of shops) {
       if (player.x > shop.x && player.x < shop.x + shop.w && player.y > shop.y && player.y < shop.y + shop.h) {
-        openShop(shop);
-        return;
+        openShop(shop); return;
       }
     }
-
     const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
-    if (distToCar < 120) {
-      gameState.inCar = true;
-      return;
-    }
-
+    if (distToCar < 140) { gameState.inCar = true; return; }
     const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
     if (distToEgor < 80) {
       openDialogue("Егор: — Ну чего тебе?", [
@@ -305,20 +299,12 @@
 
   function exitCarOrEject() {
     if (gameState.activePanel) return;
-    
     if (gameState.inCar) {
       if (egor.state === 'inCar') {
-        egor.state = 'idle';
-        egor.x = car.x + 80;
-        egor.y = car.y + 80;
-        mission.active = false;
+        egor.state = 'idle'; egor.x = car.x + 80; egor.y = car.y + 80; mission.active = false;
       } else {
-        gameState.inCar = false;
-        car.speed = 0;
-        car.isEngineOn = false;
-        stopEngineSound();
-        bgMusic.pause();
-
+        gameState.inCar = false; car.speed = 0; car.isEngineOn = false;
+        stopEngineSound(); bgMusic.pause();
         player.x = car.x + Math.cos(car.angle + Math.PI/2) * 80;
         player.y = car.y + Math.sin(car.angle + Math.PI/2) * 80;
       }
@@ -329,17 +315,13 @@
     if (gameState.activePanel) return;
 
     if (egor.state === 'walking') {
-      let dx = car.x - egor.x;
-      let dy = car.y - egor.y;
+      let dx = car.x - egor.x; let dy = car.y - egor.y;
       let dist = Math.hypot(dx, dy);
       if (dist > 60) {
-        egor.x += (dx / dist) * egor.speed;
-        egor.y += (dy / dist) * egor.speed;
+        egor.x += (dx / dist) * egor.speed; egor.y += (dy / dist) * egor.speed;
+        egor.walkCycle += egor.speed * 0.15; // Анимация ходьбы Егора
       } else {
-        egor.state = 'inCar';
-        mission.active = true;
-        
-        // УВЕЛИЧЕНА ДИСТАНЦИЯ (минимум 4000 пикселей)
+        egor.state = 'inCar'; mission.active = true;
         let safeDist = false;
         while(!safeDist) {
           if (Math.random() > 0.5) {
@@ -349,38 +331,47 @@
             mission.destX = Math.random() * WORLD_SIZE;
             mission.destY = roadsY[Math.floor(Math.random() * roadsY.length)];
           }
-          let dx = mission.destX - car.x;
-          let dy = mission.destY - car.y;
+          let dx = mission.destX - car.x; let dy = mission.destY - car.y;
           if (Math.hypot(dx, dy) > 4000) safeDist = true;
         }
       }
+    } else {
+      egor.walkCycle = 0; // Сброс анимации, если стоит
     }
 
     if (mission.active && gameState.inCar) {
       let distToDest = Math.hypot(car.x - mission.destX, car.y - mission.destY);
       if (distToDest < 150) {
-        mission.active = false;
-        stats.money += 500;
-        stats.mood += 10;
-        egor.state = 'idle';
-        egor.x = car.x + 80;
-        egor.y = car.y + 80;
+        mission.active = false; stats.money += 500; stats.mood += 10;
+        egor.state = 'idle'; egor.x = car.x + 80; egor.y = car.y + 80;
         alert("Вы довезли Егора! Получено 500 ₽.");
       }
     }
 
     if (gameState.inCar) {
       if (car.isEngineOn) {
+        // Плавное ускорение и торможение
         if (isUp()) car.speed += car.accel;
-        if (isDown()) car.speed -= car.accel;
+        if (isDown()) car.speed -= (car.accel * 1.5); // Тормозит чуть быстрее
         car.speed *= car.friction;
         
         if (car.speed > car.maxSpeed) car.speed = car.maxSpeed;
         if (car.speed < -car.maxSpeed / 2) car.speed = -car.maxSpeed / 2;
 
+        // Выстрелы выхлопа при переключении передач
+        let currentGear = Math.floor(Math.abs(car.speed) / 5);
+        if (currentGear > car.lastGear && car.speed > 0) {
+          playExhaustPop();
+        }
+        car.lastGear = currentGear;
+
+        // Руль (зависит от скорости)
         if (Math.abs(car.speed) > 0.5) {
-          if (isLeft()) car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
-          if (isRight()) car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
+          let speedFactor = Math.abs(car.speed) / car.maxSpeed;
+          let currentTurn = car.turnSpeed * (0.5 + speedFactor * 0.5);
+          
+          if (isLeft()) car.angle -= currentTurn * (car.speed > 0 ? 1 : -1);
+          if (isRight()) car.angle += currentTurn * (car.speed > 0 ? 1 : -1);
         }
 
         car.x += Math.cos(car.angle) * car.speed;
@@ -388,17 +379,13 @@
         
         updateEngineSound(car.speed);
       } else {
-        car.speed = 0;
+        car.speed = 0; car.lastGear = 0;
       }
-
       player.x = car.x; player.y = car.y;
     } else {
       let dx = 0, dy = 0;
-      if (isUp()) dy -= 1;
-      if (isDown()) dy += 1;
-      if (isLeft()) dx -= 1;
-      if (isRight()) dx += 1;
-
+      if (isUp()) dy -= 1; if (isDown()) dy += 1;
+      if (isLeft()) dx -= 1; if (isRight()) dx += 1;
       if (dx !== 0 || dy !== 0) {
         const len = Math.hypot(dx, dy); dx /= len; dy /= len;
         let targetAngle = Math.atan2(dy, dx);
@@ -406,14 +393,15 @@
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
         player.angle += angleDiff * player.turnSpeed;
-        
         player.speed += player.accel;
         if (player.speed > player.maxSpeed) player.speed = player.maxSpeed;
+        
+        player.walkCycle += player.speed * 0.15; // Анимация ходьбы Равиля
       } else {
         player.speed *= player.friction;
         if (player.speed < 0.1) player.speed = 0;
+        player.walkCycle = 0; // Сброс анимации
       }
-
       player.x += Math.cos(player.angle) * player.speed;
       player.y += Math.sin(player.angle) * player.speed;
     }
@@ -427,10 +415,8 @@
     if (car.x > WORLD_SIZE) { car.x = WORLD_SIZE; car.speed = 0; }
     if (car.y > WORLD_SIZE) { car.y = WORLD_SIZE; car.speed = 0; }
 
-    camera.x = player.x - W / 2;
-    camera.y = player.y - H / 2;
-    if (camera.x < 0) camera.x = 0;
-    if (camera.y < 0) camera.y = 0;
+    camera.x = player.x - W / 2; camera.y = player.y - H / 2;
+    if (camera.x < 0) camera.x = 0; if (camera.y < 0) camera.y = 0;
     if (camera.x > WORLD_SIZE - W) camera.x = WORLD_SIZE - W;
     if (camera.y > WORLD_SIZE - H) camera.y = WORLD_SIZE - H;
 
@@ -440,149 +426,140 @@
   function updateInteractionHint() {
     const hint = document.getElementById('interaction-hint');
     if (gameState.activePanel) { hint.style.display = 'none'; return; }
-
     let text = "";
     if (gameState.inCar) {
       const dist = Math.hypot(car.x - egor.x, car.y - egor.y);
-      if (!car.isEngineOn) {
-        text = "Нажмите [Q] чтобы завести двигатель";
-      } else if (egor.state === 'idle' && dist < 250) {
-        text = "Нажмите [E] чтобы позвать Егора";
-      } else if (egor.state === 'inCar') {
-        text = "Нажмите [F] чтобы высадить Егора | [M] Музыка";
-      } else {
-        text = "Нажмите [F] чтобы выйти | [M] Музыка";
-      }
+      if (!car.isEngineOn) text = "Нажмите [Q] чтобы завести двигатель";
+      else if (egor.state === 'idle' && dist < 250) text = "Нажмите [E] чтобы позвать Егора";
+      else if (egor.state === 'inCar') text = "Нажмите [F] высадить | [M] Музыка";
+      else text = "Нажмите [F] выйти | [M] Музыка";
     } else {
       const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
       const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
-      
       let inShop = false;
-      shops.forEach(s => {
-        if (player.x > s.x && player.x < s.x + s.w && player.y > s.y && player.y < s.y + s.h) inShop = true;
-      });
-
+      shops.forEach(s => { if (player.x > s.x && player.x < s.x + s.w && player.y > s.y && player.y < s.y + s.h) inShop = true; });
       if (inShop) text = "Нажмите [E] чтобы зайти в магазин";
-      else if (distToCar < 120) text = "Нажмите [E] чтобы сесть в машину";
+      else if (distToCar < 140) text = "Нажмите [E] чтобы сесть в машину";
       else if (distToEgor < 80) text = "Нажмите [E] чтобы заговорить";
     }
-
     if (text) { hint.innerHTML = text; hint.style.display = 'block'; } 
     else { hint.style.display = 'none'; }
   }
 
-  function drawHuman(x, y, color, name) {
-    ctx.save();
+  // ОБНОВЛЕННАЯ ОТРИСОВКА ЧЕЛОВЕЧКА (С АНИМАЦИЕЙ НОГ)
+  function drawHuman(x, y, color, name, walkCycle) {
+    ctx.save(); 
     ctx.translate(x, y); 
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    
+    // Тень
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; 
     ctx.beginPath(); ctx.ellipse(0, 0, 15, 8, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = color; ctx.fillRect(-10, -30, 20, 25);
-    ctx.fillStyle = '#333'; ctx.fillRect(-9, -10, 7, 10); ctx.fillRect(2, -10, 7, 10);
-    ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(0, -42, 12, 0, Math.PI*2); ctx.fill();
+    
+    // Тело
+    ctx.fillStyle = color; 
+    ctx.fillRect(-10, -30, 20, 25);
+    
+    // Ноги (анимированные)
+    ctx.fillStyle = '#333'; 
+    
+    // Вычисляем смещение ног синусоидой
+    let legOffset = Math.sin(walkCycle) * 6;
+    
+    // Левая нога
+    ctx.fillRect(-9, -10 + legOffset, 7, 10); 
+    // Правая нога (смещена в противофазу)
+    ctx.fillRect(2, -10 - legOffset, 7, 10); 
+    
+    // Голова
+    ctx.fillStyle = '#fcd0b3'; 
+    ctx.beginPath(); ctx.arc(0, -42, 12, 0, Math.PI*2); ctx.fill();
+    
     ctx.restore();
+    
+    // Имя
     ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; 
     ctx.fillText(name, x, y - 60);
   }
 
   function drawCar() {
+    ctx.save();
+    ctx.translate(car.x + 15, car.y + 15); 
+    ctx.rotate(car.angle);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.roundRect(-car.width/2, -car.height/2, car.width, car.height, 15); ctx.fill();
+    ctx.restore();
+
     ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-car.width/2 + 5, -car.height/2 + 5, car.width, car.height);
     
     // Колеса
     ctx.fillStyle = '#111';
-    ctx.fillRect(-35, -car.height/2 - 4, 18, 8);
-    ctx.fillRect(17, -car.height/2 - 4, 18, 8);
-    ctx.fillRect(-35, car.height/2 - 4, 18, 8);
-    ctx.fillRect(17, car.height/2 - 4, 18, 8);
+    ctx.beginPath(); ctx.roundRect(-45, -car.height/2 - 5, 22, 10, 3); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(25, -car.height/2 - 5, 22, 10, 3); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-45, car.height/2 - 5, 22, 10, 3); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(25, car.height/2 - 5, 22, 10, 3); ctx.fill();
 
     // Кузов
-    ctx.fillStyle = car.color; ctx.fillRect(-car.width/2, -car.height/2 + 4, car.width, car.height - 8);
-    ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.strokeRect(-car.width/2, -car.height/2 + 4, car.width, car.height - 8);
-    
-    // Крыша и стекла
-    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(-30, -car.height/2 + 8, 60, car.height - 16);
-    ctx.fillStyle = '#34495e'; 
-    ctx.fillRect(15, -car.height/2 + 10, 15, car.height - 20); 
-    ctx.fillRect(-40, -car.height/2 + 10, 10, car.height - 20); 
+    ctx.beginPath(); ctx.roundRect(-car.width/2, -car.height/2 + 4, car.width, car.height - 8, 15);
+    ctx.fillStyle = car.color; ctx.fill();
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.stroke();
 
-    // Люди внутри
-    if (gameState.inCar) {
-      ctx.fillStyle = '#fcd0b3';
-      ctx.beginPath(); ctx.arc(5, -10, 6, 0, Math.PI*2); ctx.fill();
-    }
-    if (egor.state === 'inCar') {
-      ctx.fillStyle = '#fcd0b3';
-      ctx.beginPath(); ctx.arc(5, 10, 6, 0, Math.PI*2); ctx.fill();
-    }
+    // Решетка
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(car.width/2 - 15, -car.height/2 + 10, 5, car.height - 20, 2); ctx.fill();
 
-    // ФАРЫ (Светят только при включенном двигателе)
+    // Крыша
+    ctx.beginPath(); ctx.roundRect(-35, -car.height/2 + 10, 70, car.height - 20, 10);
+    ctx.fillStyle = '#1a1a1a'; ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.stroke();
+
+    // Стекла
+    ctx.fillStyle = '#2c3e50'; 
+    ctx.beginPath(); ctx.roundRect(15, -car.height/2 + 12, 10, car.height - 24, 3); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-45, -car.height/2 + 12, 8, car.height - 24, 3); ctx.fill();
+    ctx.fillRect(-30, -car.height/2 + 10, 40, 5);
+    ctx.fillRect(-30, car.height/2 - 15, 40, 5);
+
+    if (gameState.inCar) { ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, -10, 7, 0, Math.PI*2); ctx.fill(); }
+    if (egor.state === 'inCar') { ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, 10, 7, 0, Math.PI*2); ctx.fill(); }
+
+    // Фары
     if (car.isEngineOn) {
-      // Передние (Желтые)
-      ctx.fillStyle = '#f1c40f'; 
-      ctx.fillRect(car.width/2 - 2, -car.height/2 + 5, 4, 8); 
-      ctx.fillRect(car.width/2 - 2, car.height/2 - 13, 4, 8); 
+      ctx.fillStyle = '#e0f7fa'; 
+      ctx.fillRect(car.width/2 - 2, -car.height/2 + 5, 4, 10); 
+      ctx.fillRect(car.width/2 - 2, car.height/2 - 15, 4, 10); 
       
-      const gradFront = ctx.createLinearGradient(car.width/2, 0, car.width/2 + 250, 0);
-      gradFront.addColorStop(0, 'rgba(241, 196, 15, 0.3)'); gradFront.addColorStop(1, 'rgba(241, 196, 15, 0)');
+      const gradFront = ctx.createLinearGradient(car.width/2, 0, car.width/2 + 300, 0);
+      gradFront.addColorStop(0, 'rgba(224, 247, 250, 0.5)'); gradFront.addColorStop(1, 'rgba(224, 247, 250, 0)');
       ctx.fillStyle = gradFront;
-      ctx.beginPath(); ctx.moveTo(car.width/2, -car.height/2 + 9); ctx.lineTo(car.width/2 + 250, -120); ctx.lineTo(car.width/2 + 250, 120); ctx.lineTo(car.width/2, car.height/2 - 9); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(car.width/2, -car.height/2 + 10); ctx.lineTo(car.width/2 + 300, -150); ctx.lineTo(car.width/2 + 300, 150); ctx.lineTo(car.width/2, car.height/2 - 10); ctx.fill();
 
-      // Задние (Красные)
-      ctx.fillStyle = '#e74c3c';
-      ctx.fillRect(-car.width/2 - 2, -car.height/2 + 5, 4, 8); 
-      ctx.fillRect(-car.width/2 - 2, car.height/2 - 13, 4, 8); 
+      ctx.fillStyle = '#ff0000';
+      ctx.fillRect(-car.width/2 - 2, -car.height/2 + 5, 4, 10); 
+      ctx.fillRect(-car.width/2 - 2, car.height/2 - 15, 4, 10); 
 
-      const gradBack = ctx.createLinearGradient(-car.width/2, 0, -car.width/2 - 150, 0);
-      gradBack.addColorStop(0, 'rgba(231, 76, 60, 0.2)'); gradBack.addColorStop(1, 'rgba(231, 76, 60, 0)');
+      const gradBack = ctx.createLinearGradient(-car.width/2, 0, -car.width/2 - 80, 0);
+      gradBack.addColorStop(0, 'rgba(255, 0, 0, 0.3)'); gradBack.addColorStop(1, 'rgba(255, 0, 0, 0)');
       ctx.fillStyle = gradBack;
-      ctx.beginPath(); ctx.moveTo(-car.width/2, -car.height/2 + 9); ctx.lineTo(-car.width/2 - 150, -80); ctx.lineTo(-car.width/2 - 150, 80); ctx.lineTo(-car.width/2, car.height/2 - 9); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-car.width/2, -car.height/2 + 10); ctx.lineTo(-car.width/2 - 80, -40); ctx.lineTo(-car.width/2 - 80, 40); ctx.lineTo(-car.width/2, car.height/2 - 10); ctx.fill();
     } else {
-      // Если заглушена, просто красные стекляшки
-      ctx.fillStyle = '#553333';
-      ctx.fillRect(-car.width/2 - 2, -car.height/2 + 5, 4, 8); 
-      ctx.fillRect(-car.width/2 - 2, car.height/2 - 13, 4, 8);
+      ctx.fillStyle = '#ccffff'; ctx.fillRect(car.width/2 - 2, -car.height/2 + 5, 4, 10); ctx.fillRect(car.width/2 - 2, car.height/2 - 15, 4, 10);
+      ctx.fillStyle = '#550000'; ctx.fillRect(-car.width/2 - 2, -car.height/2 + 5, 4, 10); ctx.fillRect(-car.width/2 - 2, car.height/2 - 15, 4, 10);
     }
-
     ctx.restore();
   }
 
   function drawMinimap() {
-    const mapSize = 200;
-    const mapX = 20;
-    const mapY = H - mapSize - 20;
-
-    ctx.save();
-    ctx.translate(mapX, mapY);
-    ctx.fillStyle = 'rgba(0,0,0,0.8)';
-    ctx.fillRect(0, 0, mapSize, mapSize);
-    ctx.strokeStyle = '#f1c40f';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, mapSize, mapSize);
-
+    const mapSize = 200; const mapX = 20; const mapY = H - mapSize - 20;
+    ctx.save(); ctx.translate(mapX, mapY);
+    ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0, 0, mapSize, mapSize);
+    ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 2; ctx.strokeRect(0, 0, mapSize, mapSize);
     const scale = mapSize / WORLD_SIZE;
-
     ctx.fillStyle = '#333';
     for (let rx of roadsX) ctx.fillRect((rx - ROAD_WIDTH/2) * scale, 0, ROAD_WIDTH * scale, mapSize);
     for (let ry of roadsY) ctx.fillRect(0, (ry - ROAD_WIDTH/2) * scale, mapSize, ROAD_WIDTH * scale);
-
-    shops.forEach(s => {
-      ctx.fillStyle = s.color;
-      ctx.fillRect(s.x * scale - 2, s.y * scale - 2, 4, 4);
-    });
-
-    if (mission.active) {
-      ctx.fillStyle = '#2ecc71';
-      ctx.beginPath(); ctx.arc(mission.destX * scale, mission.destY * scale, 4, 0, Math.PI*2); ctx.fill();
-    }
-
-    if (egor.state !== 'inCar') {
-      ctx.fillStyle = '#e74c3c';
-      ctx.beginPath(); ctx.arc(egor.x * scale, egor.y * scale, 3, 0, Math.PI*2); ctx.fill();
-    }
-
-    ctx.fillStyle = '#3498db';
-    ctx.beginPath(); ctx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI*2); ctx.fill();
-
+    shops.forEach(s => { ctx.fillStyle = s.color; ctx.fillRect(s.x * scale - 2, s.y * scale - 2, 4, 4); });
+    if (mission.active) { ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(mission.destX * scale, mission.destY * scale, 4, 0, Math.PI*2); ctx.fill(); }
+    if (egor.state !== 'inCar') { ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(egor.x * scale, egor.y * scale, 3, 0, Math.PI*2); ctx.fill(); }
+    ctx.fillStyle = '#3498db'; ctx.beginPath(); ctx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI*2); ctx.fill();
     ctx.restore();
   }
 
@@ -634,20 +611,17 @@
     });
 
     if (mission.active) {
-      ctx.strokeStyle = 'rgba(46, 204, 113, 0.6)';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([15, 15]);
+      ctx.strokeStyle = 'rgba(46, 204, 113, 0.6)'; ctx.lineWidth = 3; ctx.setLineDash([15, 15]);
       ctx.beginPath(); ctx.moveTo(car.x, car.y); ctx.lineTo(mission.destX, mission.destY); ctx.stroke();
       ctx.setLineDash([]);
-      
       const pulse = Math.sin(Date.now() / 200) * 10 + 20;
       ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(mission.destX, mission.destY, pulse + 10, 0, Math.PI*2); ctx.stroke();
       ctx.fillStyle = 'rgba(46, 204, 113, 0.3)'; ctx.beginPath(); ctx.arc(mission.destX, mission.destY, pulse, 0, Math.PI*2); ctx.fill();
     }
 
-    if (egor.state !== 'inCar') drawHuman(egor.x, egor.y, egor.color, egor.name);
-    if (!gameState.inCar) drawHuman(player.x, player.y, player.color, player.name);
+    if (egor.state !== 'inCar') drawHuman(egor.x, egor.y, egor.color, egor.name, egor.walkCycle);
+    if (!gameState.inCar) drawHuman(player.x, player.y, player.color, player.name, player.walkCycle);
     drawCar();
 
     ctx.restore();
@@ -678,8 +652,7 @@
       btn.innerHTML = `${item.name} — ${item.price} ₽ (+${item.mood} настроения)`;
       btn.onclick = () => {
         if (stats.money >= item.price) {
-          stats.money -= item.price;
-          stats.mood += item.mood;
+          stats.money -= item.price; stats.mood += item.mood;
           if (stats.mood > 100) stats.mood = 100;
           updateHUD();
           alert(`Вы купили: ${item.name}. Настроение повысилось!`);
