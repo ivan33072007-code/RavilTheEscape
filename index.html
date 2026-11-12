@@ -115,7 +115,6 @@
 </div>
 
 <script>
-  // --- ФИКС 14: полифилл roundRect для старых браузеров ---
   if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
     CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
       let tl, tr, br, bl;
@@ -140,12 +139,11 @@
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const bgMusic = document.getElementById('bg-music');
-  bgMusic.volume = 0.3; // ФИКС 2: стартовая громкость музыки
+  bgMusic.volume = 0.3;
   let W, H;
   function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
   window.addEventListener('resize', resize); resize();
 
-  // --- ВРЕМЯ И ДЕНЬ/НОЧЬ ---
   const DAY_DURATION = 10 * 60 * 1000;
   const NIGHT_DURATION = 5 * 60 * 1000;
   const TOTAL_CYCLE = DAY_DURATION + NIGHT_DURATION;
@@ -176,7 +174,6 @@
     return { isNight, alpha, timeString: `${h}:${m}` };
   }
 
-  // --- АУДИО ---
   let audioCtx, masterGain, engineOsc1, engineOsc2, engineGain, engineFilter;
   let ambientOsc, ambientGain;
 
@@ -231,7 +228,6 @@
   document.getElementById('vol-music').addEventListener('input', (e) => { bgMusic.volume = parseFloat(e.target.value); });
   document.getElementById('vol-game').addEventListener('input', (e) => { if(masterGain) masterGain.gain.value = parseFloat(e.target.value); });
 
-  // --- ЧАСТИЦЫ ---
   let particles = [];
   let skidmarks = [];
   let fuelAlertShown = false;
@@ -260,9 +256,6 @@
     for(let i=0; i<15; i++) { particles.push({ x: rearX + (Math.random() - 0.5) * 20, y: rearY + (Math.random() - 0.5) * 20, vx: -Math.cos(car.angle) * 8 + (Math.random() - 0.5) * 6, vy: -Math.sin(car.angle) * 8 + (Math.random() - 0.5) * 6, life: 1.0, size: 10 + Math.random() * 15, color: Math.random() > 0.5 ? '#ff5500' : '#ffaa00' }); }
   }
 
-  // ==========================================
-  // КАРТА НОВОГО БЫТА
-  // ==========================================
   const WORLD_SIZE = 10000;
   const ROAD_WIDTH = 300;
   const SMALL_ROAD_WIDTH = 150;
@@ -284,7 +277,6 @@
     { x: 0, y: 6500, w: 2500, h: 3500 }
   ];
 
-  // ФИКС 1: предгенерируем "блики" на воде один раз, чтобы не мерцали и не появлялись на суше
   waterAreas.forEach(w => {
     w.sparkles = [];
     const count = Math.max(40, Math.floor(w.w * w.h / 100000));
@@ -343,11 +335,12 @@
   const trees = [];
   const houses = [];
 
+  // ИСПРАВЛЕНО: Магазины сдвинуты так, чтобы не перекрывать дорожное полотно
   const shops = [
-    { id: 'coffee', x: 6800, y: 4500, w: 200, h: 150, name: "Пятерочка", color: "#e74c3c", type: 'food', items: [{ name: "Еда", price: 150, mood: 15 }] },
+    { id: 'coffee', x: 6300, y: 4600, w: 200, h: 150, name: "Пятерочка", color: "#e74c3c", type: 'food', items: [{ name: "Еда", price: 150, mood: 15 }] },
     { id: 'shawarma', x: 7300, y: 5300, w: 200, h: 150, name: "Шаурма у Ноны", color: "#d35400", type: 'food', items: [{ name: "Шаурма", price: 300, mood: 30 }] },
-    { id: 'gas', x: 7300, y: 2800, w: 250, h: 150, name: "Заправка", color: "#27ae60", type: 'gas' },
-    { id: 'garage', x: 3200, y: 6200, w: 250, h: 200, name: "Автосервис", color: "#7f8c8d", type: 'garage' }
+    { id: 'gas', x: 7300, y: 3200, w: 250, h: 150, name: "Заправка", color: "#27ae60", type: 'gas' },
+    { id: 'garage', x: 3300, y: 6200, w: 250, h: 200, name: "Автосервис", color: "#7f8c8d", type: 'garage' }
   ];
 
   function initWorld() {
@@ -419,7 +412,6 @@
     const p = document.getElementById('settings-panel'); p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
   }
 
-  // ФИКС 3: единицы топлива — теперь везде километры
   function updateHUD(timeData) {
     document.getElementById('hud-money').textContent = Math.floor(stats.money);
     document.getElementById('hud-mood').textContent = stats.mood;
@@ -482,7 +474,6 @@
       }
       const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
       if (distToCar < 160) {
-        // ФИКС 11: сбрасываем спринт и скорость при посадке в машину
         gameState.inCar = true;
         player.isSprinting = false;
         player.speed = 0;
@@ -499,7 +490,6 @@
     }
   }
 
-  // ФИКС 4+5: безопасная высадка игрока и Егора
   function isPositionFree(x, y, radius, ignoreEgor = false) {
     for (let s of shops) {
       let closestX = Math.max(s.x, Math.min(x, s.x + s.w));
@@ -519,20 +509,17 @@
   }
 
   function findSafePosition(cx, cy, angle, radius, distance, ignoreEgor) {
-    // Пробуем несколько относительных углов: сбоку, сзади, спереди
     const offsets = [Math.PI/2, -Math.PI/2, Math.PI, 0, Math.PI/4, -Math.PI/4, 3*Math.PI/4, -3*Math.PI/4];
     for (let off of offsets) {
       let px = cx + Math.cos(angle + off) * distance;
       let py = cy + Math.sin(angle + off) * distance;
       if (isPositionFree(px, py, radius, ignoreEgor)) return { x: px, y: py };
     }
-    // Фолбэк: чуть увеличим дистанцию
     for (let off of offsets) {
       let px = cx + Math.cos(angle + off) * (distance * 1.8);
       let py = cy + Math.sin(angle + off) * (distance * 1.8);
       if (isPositionFree(px, py, radius, ignoreEgor)) return { x: px, y: py };
     }
-    // Последний фолбэк — старое поведение
     return { x: cx + Math.cos(angle + Math.PI/2) * distance, y: cy + Math.sin(angle + Math.PI/2) * distance };
   }
 
@@ -540,7 +527,6 @@
     if (gameState.activePanel) return;
     if (gameState.inCar) {
       if (egor.state === 'inCar') {
-        // Сначала высаживаем Егора
         const pos = findSafePosition(car.x, car.y, car.angle, egor.radius, 100, true);
         egor.x = pos.x; egor.y = pos.y;
         egor.state = 'idle';
@@ -549,7 +535,6 @@
       else {
         gameState.inCar = false; car.speed = 0; car.vx = 0; car.vy = 0; car.isEngineOn = false;
         stopEngineSound(); bgMusic.pause();
-        // ФИКС 13: сбрасываем трек на начало
         bgMusic.currentTime = 0;
 
         const pos = findSafePosition(car.x, car.y, car.angle, player.radius, 110, false);
@@ -557,10 +542,6 @@
       }
     }
   }
-
-  // ==========================================
-  // ФИЗИКА И КОЛЛИЗИИ
-  // ==========================================
 
   function getCarCircles(cx, cy) {
     return [
@@ -581,6 +562,17 @@
     if (egor.state === 'inCar') return false;
     if (Math.hypot(cx - egor.x, cy - egor.y) < radius + egor.radius) return true;
     if (Math.hypot(cx - egor.x, cy - (egor.y - 25)) < radius + 15) return true;
+    return false;
+  }
+
+  // ИСПРАВЛЕНО: Егор теперь имеет хитбокс для машины
+  function isCarHittingEgor(cx, cy) {
+    if (egor.state === 'inCar') return false;
+    let carCircles = getCarCircles(cx, cy);
+    for (let c of carCircles) {
+      if (Math.hypot(c.x - egor.x, c.y - egor.y) < c.r + egor.radius) return true;
+      if (Math.hypot(c.x - egor.x, c.y - (egor.y - 25)) < c.r + 15) return true;
+    }
     return false;
   }
 
@@ -608,9 +600,7 @@
       }
     }
 
-    for (let c of tempCircles) {
-        if (isInWater(c.x, c.y)) return true;
-    }
+    // Вода убрана из проверки коллизий, чтобы машина могла в нее заехать и утонуть
 
     return false;
   }
@@ -638,7 +628,6 @@
         egor.walkCycle += egor.speed * 0.15; egor.angle = Math.atan2(dy, dx);
       } else {
         egor.state = 'inCar'; mission.active = true;
-        // ФИКС 6: ограничиваем число попыток поиска точки миссии
         let safeDist = false;
         for (let attempt = 0; attempt < 200; attempt++) {
           mission.destX = Math.random() * WORLD_SIZE;
@@ -647,7 +636,6 @@
               if (Math.hypot(mission.destX - car.x, mission.destY - car.y) > 2000) { safeDist = true; break; }
           }
         }
-        // Если не нашли за 200 попыток — оставляем последнюю (она всё равно валидна по координатам)
       }
     } else { egor.walkCycle = 0; }
 
@@ -698,13 +686,25 @@
         car.lastGear = gear;
 
         let oldX = car.x; car.x += car.vx;
-        if (checkCarEnvironmentCollision(car.x, car.y)) {
+        if (checkCarEnvironmentCollision(car.x, car.y) || isCarHittingEgor(car.x, car.y)) {
             car.x = oldX; car.vx *= -0.2;
         }
 
         let oldY = car.y; car.y += car.vy;
-        if (checkCarEnvironmentCollision(car.x, car.y)) {
+        if (checkCarEnvironmentCollision(car.x, car.y) || isCarHittingEgor(car.x, car.y)) {
             car.y = oldY; car.vy *= -0.2;
+        }
+
+        // ИСПРАВЛЕНО: Проверка утопления
+        let carDrowned = false;
+        for (let c of getCarCircles(car.x, car.y)) {
+            if (isInWater(c.x, c.y)) { carDrowned = true; break; }
+        }
+        if (carDrowned) {
+            alert("Машина утонула, Равиль на вас зол!");
+            stats.mood = Math.max(0, stats.mood - 30);
+            respawnCar();
+            return; // Прерываем апдейт на этом кадре
         }
 
         updateEngineSound(currentSpeed);
@@ -941,7 +941,6 @@
     ctx.fillStyle = '#2d5a27'; ctx.fillRect(0, 0, W, H);
     ctx.save(); ctx.translate(-camera.x, -camera.y);
 
-    // ФИКС 1: вода + блики только внутри воды, без мерцания
     waterAreas.forEach(w => {
       ctx.fillStyle = '#1a5276';
       ctx.fillRect(w.x, w.y, w.w, w.h);
@@ -1053,7 +1052,6 @@
     drawMinimap();
   }
 
-  // ФИКС 8: кэшируем timeData — 1 вызов getTimeData() на кадр
   function gameLoop() {
     update();
     const timeData = getTimeData();
