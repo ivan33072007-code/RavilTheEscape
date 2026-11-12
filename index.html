@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Adventure 2D - Drift Edition</title>
+<title>Adventure 2D - Physics & Textures</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: system-ui, sans-serif; }
@@ -15,7 +15,6 @@
   .stat-value { color: #f1c40f; }
   #hud-mission { color: #2ecc71; margin-top: 10px; display: none; text-shadow: 0 0 5px #000; }
 
-  /* Шкала выносливости */
   #stamina-label { font-size: 12px; color: #aaa; margin-top: 8px; margin-bottom: 2px; }
   #stamina-container { width: 150px; height: 10px; background: rgba(0,0,0,0.5); border: 1px solid #555; border-radius: 5px; overflow: hidden; }
   #stamina-bar { width: 100%; height: 100%; background: #e67e22; transition: width 0.1s; }
@@ -156,18 +155,17 @@
   let skidmarks = [];
 
   function playExhaustPop() {
-    initAudio(); // На всякий случай проверяем контекст
+    initAudio();
     if(!audioCtx) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
     
-    // Звук
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(150, audioCtx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.15);
     
-    gain.gain.setValueAtTime(2.0, audioCtx.currentTime); // Очень громко
+    gain.gain.setValueAtTime(2.0, audioCtx.currentTime); 
     gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
     
     osc.connect(gain);
@@ -175,7 +173,6 @@
     osc.start();
     osc.stop(audioCtx.currentTime + 0.2);
 
-    // Визуал (сзади машины)
     const rearX = car.x - Math.cos(car.angle) * (car.width/2);
     const rearY = car.y - Math.sin(car.angle) * (car.width/2);
     
@@ -187,7 +184,7 @@
         vy: -Math.sin(car.angle) * 8 + (Math.random() - 0.5) * 6,
         life: 1.0,
         size: 10 + Math.random() * 15,
-        color: Math.random() > 0.5 ? '#ff5500' : '#ffaa00' // Огненные цвета
+        color: Math.random() > 0.5 ? '#ff5500' : '#ffaa00'
       });
     }
   }
@@ -206,20 +203,20 @@
     walkSpeed: 1.0, sprintSpeed: 2.0,
     accel: 0.08, friction: 0.85, turnSpeed: 0.15, 
     color: '#3498db', name: "Равиль", walkCycle: 0,
-    stamina: 100, maxStamina: 100, isSprinting: false
+    stamina: 100, maxStamina: 100, isSprinting: false,
+    radius: 15 // Радиус для коллизий
   };
   
   const egor = { x: 4900, y: 5200, speed: 1.5, color: '#e74c3c', name: "Егор", state: 'idle', walkCycle: 0, angle: 0 };
   
-  // ОТРЕГУЛИРОВАННАЯ ФИЗИКА МАШИНЫ (Не камень, но и не пушинка)
   const car = { 
     x: 5000, y: 5000, angle: -Math.PI/2, 
     vx: 0, vy: 0, speed: 0, 
     maxSpeed: 22, 
-    accel: 0.22,   // Увеличено для отзывчивости
-    turnSpeed: 0.05, // Нормальный поворот
-    grip: 0.15,    // Занос
-    drag: 0.97,    // Сопротивление воздуха (легче катится)
+    accel: 0.22, 
+    turnSpeed: 0.05, 
+    grip: 0.15, 
+    drag: 0.97, 
     width: 150, height: 75,
     color: '#0a0a0a',
     isEngineOn: false, lastGear: 0 
@@ -231,6 +228,8 @@
   const trees = [];
   const bushes = [];
   const lights = [];
+  
+  // Магазины (добавлен параметр radius для коллизии)
   const shops = [
     { x: 5300, y: 2100, w: 200, h: 150, name: "Кофейня", color: "#8e44ad", items: [{ name: "Кофе", price: 150, mood: 15 }] },
     { x: 1950, y: 5300, w: 250, h: 200, name: "Шаурмичная", color: "#d35400", items: [{ name: "Шаурма", price: 300, mood: 30 }] }
@@ -327,7 +326,7 @@
       return;
     }
     for(let shop of shops) {
-      if (player.x > shop.x && player.x < shop.x + shop.w && player.y > shop.y && player.y < shop.y + shop.h) {
+      if (player.x > shop.x - 20 && player.x < shop.x + shop.w + 20 && player.y > shop.y - 20 && player.y < shop.y + shop.h + 20) {
         openShop(shop); return;
       }
     }
@@ -356,9 +355,21 @@
     }
   }
 
+  // --- ФУНКЦИИ КОЛЛИЗИЙ ---
+  function checkCollision(x, y, radius) {
+    // Столкновение с магазинами
+    for (let s of shops) {
+      if (x + radius > s.x && x - radius < s.x + s.w && y + radius > s.y && y - radius < s.y + s.h) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function update() {
     if (gameState.activePanel) return;
 
+    // Обновление частиц
     for(let i = particles.length - 1; i >= 0; i--) {
       let p = particles[i];
       p.x += p.vx; p.y += p.vy;
@@ -404,6 +415,10 @@
         alert("Вы довезли Егора! Получено 500 ₽.");
       }
     }
+
+    // СОХРАНЯЕМ ПРЕДЫДУЩУЮ ПОЗИЦИЮ ДЛЯ ОТМЕНЫ ДВИЖЕНИЯ ПРИ КОЛЛИЗИИ
+    let prevCarX = car.x, prevCarY = car.y;
+    let prevPlayerX = player.x, prevPlayerY = player.y;
 
     if (gameState.inCar) {
       if (car.isEngineOn) {
@@ -451,15 +466,24 @@
           car.vy = (car.vy / currentSpeed) * car.maxSpeed;
         }
 
-        // ВЫХЛОП ТЕПЕРЬ РАБОТАЕТ ЧЕТКО КАЖДЫЕ 3 КМ/Ч
         let gear = Math.floor(currentSpeed / 3);
         if (gear > car.lastGear && car.speed > 0) {
           playExhaustPop();
         }
         car.lastGear = gear;
 
+        // ПРОДВИЖЕНИЕ МАШИНЫ С УЧЕТОМ КОЛЛИЗИЙ
         car.x += car.vx;
         car.y += car.vy;
+
+        // Проверка коллизии машины (радиус 70, так как она большая)
+        if (checkCollision(car.x, car.y, 60)) {
+          car.x = prevCarX;
+          car.y = prevCarY;
+          car.vx = 0;
+          car.vy = 0;
+          car.speed = 0;
+        }
 
         updateEngineSound(currentSpeed);
       } else {
@@ -503,8 +527,22 @@
         player.stamina = Math.min(player.maxStamina, player.stamina + 0.3);
       }
 
+      // ПРОДВИЖЕНИЕ ИГРОКА С УЧЕТОМ КОЛЛИЗИЙ
       player.x += Math.cos(player.angle) * player.speed;
       player.y += Math.sin(player.angle) * player.speed;
+
+      // Проверка коллизии с магазинами
+      if (checkCollision(player.x, player.y, player.radius)) {
+        player.x = prevPlayerX;
+        player.y = prevPlayerY;
+      }
+
+      // Проверка коллизии с машиной (если игрок пешком)
+      const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
+      if (distToCar < 75) { // Радиус машины + радиус игрока
+        player.x = prevPlayerX;
+        player.y = prevPlayerY;
+      }
     }
 
     if (player.x < 0) { player.x = 0; player.speed = 0; player.vx = 0; }
@@ -538,7 +576,7 @@
       const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
       const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
       let inShop = false;
-      shops.forEach(s => { if (player.x > s.x && player.x < s.x + s.w && player.y > s.y && player.y < s.y + s.h) inShop = true; });
+      shops.forEach(s => { if (player.x > s.x - 20 && player.x < s.x + s.w + 20 && player.y > s.y - 20 && player.y < s.y + s.h + 20) inShop = true; });
       if (inShop) text = "Нажмите [E] чтобы зайти в магазин";
       else if (distToCar < 160) text = "Нажмите [E] чтобы сесть в машину";
       else if (distToEgor < 80) text = "Нажмите [E] чтобы заговорить";
@@ -547,7 +585,7 @@
     else { hint.style.display = 'none'; }
   }
 
-  // --- ПЛАВНАЯ ОТРИСОВКА ЧЕЛОВЕЧКА (С ВРАЩЕНИЕМ КОНЕЧНОСТЕЙ) ---
+  // --- ПЛАВНАЯ АНИМАЦИЯ ЧЕЛОВЕЧКА (С ВРАЩЕНИЕМ СУСТАВОВ) ---
   function drawHuman(x, y, color, name, walkCycle, isRavil, angle) {
     ctx.save(); 
     ctx.translate(x, y); 
@@ -555,7 +593,6 @@
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; 
     ctx.beginPath(); ctx.ellipse(0, 0, 18, 9, 0, 0, Math.PI*2); ctx.fill();
     
-    // Базовый угол для поворота всего тела
     let a = (angle + Math.PI * 2) % (Math.PI * 2);
     let dir = 0; 
     if (a > Math.PI * 0.25 && a < Math.PI * 0.75) dir = 0; // Вниз
@@ -563,51 +600,47 @@
     else if (a >= Math.PI * 1.25 && a < Math.PI * 1.75) dir = 2; // Вверх
     else dir = 3; // Вправо
 
-    let swing = Math.sin(walkCycle) * 0.5; // Угол качания (в радианах)
+    let swing = Math.sin(walkCycle) * 0.6; // Угол качания
 
-    // Рисуем НОГИ с помощью поворота холста (плавная анимация)
+    // НОГИ (Плавное вращение в бедре)
     ctx.fillStyle = '#2c3e50'; 
-    
-    if (dir === 0) { // Вниз
-      // Левая нога
-      ctx.save(); ctx.translate(-8, -6); ctx.rotate(swing); ctx.fillRect(-4, 0, 8, 14); ctx.restore();
-      // Правая нога
-      ctx.save(); ctx.translate(8, -6); ctx.rotate(-swing); ctx.fillRect(-4, 0, 8, 14); ctx.restore();
-    } else if (dir === 2) { // Вверх
-      ctx.save(); ctx.translate(-8, -8); ctx.rotate(-swing); ctx.fillRect(-4, 0, 8, 14); ctx.restore();
-      ctx.save(); ctx.translate(8, -8); ctx.rotate(swing); ctx.fillRect(-4, 0, 8, 14); ctx.restore();
-    } else { // Влево/Вправо
-      ctx.save(); ctx.translate(0, -4); ctx.rotate(swing * 0.5); ctx.fillRect(-6, 0, 12, 10); ctx.restore();
+    if (dir === 0) {
+      ctx.save(); ctx.translate(-6, -8); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.translate(6, -8); ctx.rotate(-swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
+    } else if (dir === 2) {
+      ctx.save(); ctx.translate(-6, -8); ctx.rotate(-swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.translate(6, -8); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-5, 0, 10, 16, 3); ctx.fill(); ctx.restore();
+    } else {
+      ctx.save(); ctx.translate(0, -6); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-7, 0, 14, 12, 3); ctx.fill(); ctx.restore();
     }
 
-    // Тело
+    // ТЕЛО
     ctx.fillStyle = color; 
-    ctx.fillRect(-12, -32, 24, 26); 
+    ctx.beginPath(); ctx.roundRect(-12, -34, 24, 26, 6); ctx.fill(); 
 
-    // РУКИ (тоже плавно качаются)
+    // РУКИ (Плавное вращение в плече)
     ctx.fillStyle = '#fcd0b3'; 
     if (dir === 0 || dir === 2) {
-      ctx.save(); ctx.translate(-16, -26); ctx.rotate(-swing); ctx.fillRect(-3, 0, 6, 16); ctx.restore();
-      ctx.save(); ctx.translate(16, -26); ctx.rotate(swing); ctx.fillRect(-3, 0, 6, 16); ctx.restore();
+      ctx.save(); ctx.translate(-14, -28); ctx.rotate(-swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.translate(14, -28); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore();
     } else {
-      ctx.save(); ctx.translate(-16, -24); ctx.rotate(swing); ctx.fillRect(-3, 0, 6, 16); ctx.restore();
-      ctx.save(); ctx.translate(16, -24); ctx.rotate(-swing); ctx.fillRect(-3, 0, 6, 16); ctx.restore();
+      ctx.save(); ctx.translate(-10, -26); ctx.rotate(swing); ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 4); ctx.fill(); ctx.restore();
     }
 
-    // Голова
+    // ГОЛОВА
     ctx.fillStyle = '#fcd0b3'; 
     ctx.beginPath(); ctx.arc(0, -46, 14, 0, Math.PI*2); ctx.fill();
 
-    // Лицо (в зависимости от направления)
+    // ЛИЦО
     if (isRavil) {
         ctx.fillStyle = '#111';
-        if (dir === 0) { // Вниз
+        if (dir === 0) {
             ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill();
-            ctx.fillStyle = '#111'; ctx.fillRect(-10, -48, 20, 6); // Очки
-        } else if (dir === 2) { // Вверх
+            ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-10, -48, 20, 7, 3); ctx.fill(); // Очки
+        } else if (dir === 2) {
             ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill();
-        } else { // Боком
-            ctx.fillRect(dir === 3 ? 0 : -12, -48, 12, 6); 
+        } else {
+            ctx.beginPath(); ctx.roundRect(dir === 3 ? 2 : -14, -48, 12, 7, 3); ctx.fill(); 
             ctx.beginPath(); ctx.arc(0, -48, 14, Math.PI, 0); ctx.fill();
         }
     } else {
@@ -615,9 +648,9 @@
         ctx.beginPath(); ctx.arc(-4, -50, 10, Math.PI, 0); ctx.fill();
         ctx.beginPath(); ctx.arc(4, -48, 10, Math.PI, 0); ctx.fill();
         
-        if (dir === 0) { ctx.fillStyle = '#000'; ctx.fillRect(-8, -48, 3, 3); ctx.fillRect(5, -48, 3, 3); }
-        else if (dir === 3) { ctx.fillStyle = '#000'; ctx.fillRect(6, -48, 3, 3); }
-        else if (dir === 1) { ctx.fillStyle = '#000'; ctx.fillRect(-9, -48, 3, 3); }
+        if (dir === 0) { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-5, -48, 2, 0, Math.PI*2); ctx.arc(5, -48, 2, 0, Math.PI*2); ctx.fill(); }
+        else if (dir === 3) { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(8, -48, 2, 0, Math.PI*2); ctx.fill(); }
+        else if (dir === 1) { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-8, -48, 2, 0, Math.PI*2); ctx.fill(); }
     }
     
     ctx.restore();
@@ -626,26 +659,42 @@
     ctx.fillText(name, x, y - 75);
   }
 
+  // --- ТЕКСТУРА МАШИНЫ ---
   function drawCar() {
     ctx.save();
     ctx.translate(car.x + 20, car.y + 20); 
     ctx.rotate(car.angle);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.beginPath(); ctx.roundRect(-car.width/2, -car.height/2, car.width, car.height, 20); ctx.fill();
     ctx.restore();
 
     ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
     
+    // Колеса
     ctx.fillStyle = '#111';
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(30, -car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(-55, car.height/2 - 7, 28, 14, 4); ctx.fill();
     ctx.beginPath(); ctx.roundRect(30, car.height/2 - 7, 28, 14, 4); ctx.fill();
 
+    // Кузов (с градиентом для объема)
+    let grad = ctx.createLinearGradient(0, -car.height/2, 0, car.height/2);
+    grad.addColorStop(0, '#1a1a1a'); grad.addColorStop(0.5, '#0a0a0a'); grad.addColorStop(1, '#1a1a1a');
     ctx.beginPath(); ctx.roundRect(-car.width/2, -car.height/2 + 5, car.width, car.height - 10, 20);
-    ctx.fillStyle = car.color; ctx.fill();
-    ctx.strokeStyle = '#222'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.stroke();
 
+    // Зеркала (сбоку)
+    ctx.fillStyle = '#000';
+    ctx.fillRect(-10, -car.height/2 - 5, 15, 5);
+    ctx.fillRect(-10, car.height/2, 15, 5);
+
+    // Двери (линии)
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-5, -car.height/2 + 5); ctx.lineTo(-5, car.height/2 - 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(25, -car.height/2 + 5); ctx.lineTo(25, car.height/2 - 5); ctx.stroke();
+
+    // Сиденья внутри
     ctx.fillStyle = '#222';
     ctx.beginPath(); ctx.roundRect(-30, -25, 60, 20, 5); ctx.fill(); 
     ctx.beginPath(); ctx.roundRect(-30, 5, 60, 20, 5); ctx.fill(); 
@@ -657,12 +706,12 @@
       ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(-5, 15, 8, 0, Math.PI*2); ctx.fill();
     }
 
+    // Стекла (поверх людей)
     ctx.fillStyle = 'rgba(20, 30, 40, 0.75)'; 
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 + 12, 100, car.height - 24, 15); ctx.fill();
-    
-    ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(-35, -car.height/2 + 12); ctx.lineTo(-35, car.height/2 - 12); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(20, -car.height/2 + 12); ctx.lineTo(20, car.height/2 - 12); ctx.stroke();
+    // Блик на стекле
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath(); ctx.roundRect(-50, -car.height/2 + 15, 90, 10, 5); ctx.fill();
 
     if (car.isEngineOn) {
       ctx.fillStyle = '#e0f7fa'; 
@@ -740,15 +789,33 @@
       }
     });
 
+    // --- ТЕКСТУРА МАГАЗИНОВ (ЗДАНИЯ) ---
     shops.forEach(s => {
       if (s.x > camera.x - 300 && s.x < camera.x + W + 300 && s.y > camera.y - 300 && s.y < camera.y + H + 300) {
+        // Фундамент/Тротуар
         ctx.fillStyle = '#444'; ctx.fillRect(s.x - 30, s.y - 30, s.w + 60, s.h + 60);
-        ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(s.x + 10, s.y + 10, s.w, s.h);
+        
+        // Тень здания
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(s.x + 15, s.y + 15, s.w, s.h);
+        
+        // Стены
         ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h);
-        ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(s.x, s.y, s.w, 40);
+        
+        // Крыша (объем)
+        ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(s.x - 10, s.y - 10, s.w + 20, 40);
+        ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(s.x, s.y + 30, s.w, s.h - 30);
+        
+        // Окна
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(s.x + 20, s.y + 60, 30, 40);
+        ctx.fillRect(s.x + s.w - 50, s.y + 60, 30, 40);
+        
+        // Дверь
+        ctx.fillStyle = '#111'; ctx.fillRect(s.x + s.w/2 - 25, s.y + s.h - 30, 50, 30);
+        
+        // Вывеска
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center';
-        ctx.fillText(s.name, s.x + s.w/2, s.y + 28);
-        ctx.fillStyle = '#111'; ctx.fillRect(s.x + s.w/2 - 25, s.y + s.h - 20, 50, 20);
+        ctx.fillText(s.name, s.x + s.w/2, s.y + 20);
       }
     });
 
@@ -762,7 +829,6 @@
       ctx.fillStyle = 'rgba(46, 204, 113, 0.3)'; ctx.beginPath(); ctx.arc(mission.destX, mission.destY, pulse, 0, Math.PI*2); ctx.fill();
     }
 
-    // Отрисовка следов шин
     skidmarks.forEach(mark => {
       ctx.save();
       ctx.translate(mark.x, mark.y);
@@ -778,7 +844,6 @@
     
     drawCar();
 
-    // ВЫХЛОП ПОВЕРХ ВСЕГО (ЯРКИЙ)
     particles.forEach(p => {
       ctx.fillStyle = p.color;
       ctx.globalAlpha = p.life;
