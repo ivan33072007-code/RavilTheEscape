@@ -15,14 +15,14 @@
   #hud div { margin-bottom: 5px; }
   .stat-value { color: #f1c40f; }
 
-  /* Кнопки управления */
+  /* Кнопки управления (WASD) */
   #controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; pointer-events: auto; }
   .ctrl-group { display: flex; flex-direction: column; gap: 5px; align-items: center; }
   .ctrl-row { display: flex; gap: 5px; }
-  .ctrl-btn { width: 60px; height: 60px; border-radius: 12px; background: rgba(0,0,0,0.6); color: #fff; border: 1px solid rgba(255,255,255,0.2); font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; touch-action: manipulation; backdrop-filter: blur(4px); }
+  .ctrl-btn { width: 60px; height: 60px; border-radius: 12px; background: rgba(0,0,0,0.6); color: #fff; border: 1px solid rgba(255,255,255,0.2); font-size: 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; touch-action: manipulation; backdrop-filter: blur(4px); }
   .ctrl-btn:active { background: rgba(255,255,255,0.3); }
-  .action-btn { background: rgba(241, 196, 15, 0.8); color: #000; font-weight: bold; font-size: 14px; width: 90px; }
-  .eject-btn { background: rgba(231, 76, 60, 0.8); color: #fff; font-weight: bold; font-size: 14px; width: 90px; display: none; }
+  .action-btn { background: rgba(241, 196, 15, 0.8); color: #000; font-size: 14px; width: 90px; }
+  .eject-btn { background: rgba(231, 76, 60, 0.8); color: #fff; font-size: 14px; width: 90px; display: none; }
 
   /* Окна интерфейса (Диалоги / Магазины) */
   .panel { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; color: #fff; display: none; flex-direction: column; gap: 15px; pointer-events: auto; z-index: 100; }
@@ -45,12 +45,14 @@
 
   <div id="controls">
     <div class="ctrl-group">
-      <button class="ctrl-btn" ontouchstart="keys['w']=true" ontouchend="keys['w']=false" onmousedown="keys['w']=true" onmouseup="keys['w']=false" onmouseleave="keys['w']=false">↑</button>
-      <button class="ctrl-btn" ontouchstart="keys['s']=true" ontouchend="keys['s']=false" onmousedown="keys['s']=true" onmouseup="keys['s']=false" onmouseleave="keys['s']=false">↓</button>
+      <button class="ctrl-btn" ontouchstart="keys['w']=true" ontouchend="keys['w']=false" onmousedown="keys['w']=true" onmouseup="keys['w']=false" onmouseleave="keys['w']=false">W</button>
+      <button class="ctrl-btn" ontouchstart="keys['s']=true" ontouchend="keys['s']=false" onmousedown="keys['s']=true" onmouseup="keys['s']=false" onmouseleave="keys['s']=false">S</button>
     </div>
-    <div class="ctrl-group">
-      <button class="ctrl-btn" ontouchstart="keys['a']=true" ontouchend="keys['a']=false" onmousedown="keys['a']=true" onmouseup="keys['a']=false" onmouseleave="keys['a']=false">←</button>
-      <button class="ctrl-btn" ontouchstart="keys['d']=true" ontouchend="keys['d']=false" onmousedown="keys['d']=true" onmouseup="keys['d']=false" onmouseleave="keys['d']=false">→</button>
+    <div class="ctrl-group" style="justify-content: center;">
+      <div class="ctrl-row">
+        <button class="ctrl-btn" ontouchstart="keys['a']=true" ontouchend="keys['a']=false" onmousedown="keys['a']=true" onmouseup="keys['a']=false" onmouseleave="keys['a']=false">A</button>
+        <button class="ctrl-btn" ontouchstart="keys['d']=true" ontouchend="keys['d']=false" onmousedown="keys['d']=true" onmouseup="keys['d']=false" onmouseleave="keys['d']=false">D</button>
+      </div>
     </div>
     <div class="ctrl-group">
       <button class="ctrl-btn action-btn" onclick="interact()">Действие</button>
@@ -84,14 +86,26 @@
   let gameState = { isDialogueOpen: false, inCar: false, activePanel: null };
   let stats = { money: 1000, mood: 50 };
 
-  const player = { x: 2500, y: 2700, speed: 4, color: '#3498db', name: "Равиль" };
-  const egor = { x: 2400, y: 2600, speed: 3, color: '#e74c3c', name: "Егор", state: 'idle' }; // idle, walking, inCar
+  // Игрок теперь с физикой (как машина)
+  const player = { 
+    x: 2500, y: 2700, 
+    angle: -Math.PI/2, // Смотрит вверх
+    speed: 0, 
+    maxSpeed: 4.5, 
+    accel: 0.3, 
+    friction: 0.85, 
+    turnSpeed: 0.2,
+    color: '#3498db', 
+    name: "Равиль" 
+  };
+  
+  const egor = { x: 2400, y: 2600, speed: 3, color: '#e74c3c', name: "Егор", state: 'idle' };
   const car = { x: 2500, y: 2500, angle: -Math.PI/2, speed: 0, maxSpeed: 12, accel: 0.2, friction: 0.92, turnSpeed: 0.04, width: 100, height: 50, color: '#000' };
   
   const camera = { x: 0, y: 0 };
   const keys = {};
 
-  // Генерация окружения (деревья, фонари, магазины)
+  // Окружение
   const trees = [];
   const bushes = [];
   const lights = [];
@@ -101,16 +115,13 @@
   ];
 
   function initWorld() {
-    // Деревья (только вне дороги)
     for(let i=0; i<300; i++) {
       let tx = Math.random() * WORLD_SIZE;
       let ty = Math.random() * WORLD_SIZE;
-      // Проверка, чтобы не спавнились на дороге
       if (Math.abs(tx - WORLD_SIZE/2) > ROAD_WIDTH && Math.abs(ty - WORLD_SIZE/2) > ROAD_WIDTH) {
         trees.push({ x: tx, y: ty, r: 30 + Math.random()*20 });
       }
     }
-    // Кусты
     for(let i=0; i<200; i++) {
       let bx = Math.random() * WORLD_SIZE;
       let by = Math.random() * WORLD_SIZE;
@@ -118,7 +129,6 @@
         bushes.push({ x: bx, y: by, r: 15 + Math.random()*10 });
       }
     }
-    // Фонари вдоль дороги
     for(let i=0; i<WORLD_SIZE; i+=400) {
       lights.push({ x: WORLD_SIZE/2 - ROAD_WIDTH/2 + 50, y: i });
       lights.push({ x: WORLD_SIZE/2 + ROAD_WIDTH/2 - 50, y: i });
@@ -149,7 +159,6 @@
 
     if (gameState.inCar) {
       if (egor.state === 'idle') {
-        // Зовем Егора в машину
         const dist = Math.hypot(player.x - egor.x, player.y - egor.y);
         if (dist < 150) {
           openDialogue("Вы: — Егор, прыгай в тачку, прокатимся!", [
@@ -161,7 +170,6 @@
       return;
     }
 
-    // Взаимодействие с магазинами
     for(let shop of shops) {
       if (player.x > shop.x && player.x < shop.x + shop.w && player.y > shop.y && player.y < shop.y + shop.h) {
         openShop(shop);
@@ -169,7 +177,6 @@
       }
     }
 
-    // Взаимодействие с машиной
     const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
     if (distToCar < 100) {
       gameState.inCar = true;
@@ -177,7 +184,6 @@
       return;
     }
 
-    // Взаимодействие с Егором
     const distToEgor = Math.hypot(player.x - egor.x, player.y - egor.y);
     if (distToEgor < 60) {
       openDialogue("Егор: — Ну и чего ты встал? Опять понтуешься?", [
@@ -194,7 +200,6 @@
       egor.x = car.x + 80;
       egor.y = car.y + 80;
     } else {
-      // Выйти из машины самому
       gameState.inCar = false;
       player.x = car.x + 80;
       player.y = car.y + 80;
@@ -205,7 +210,7 @@
   function update() {
     if (gameState.activePanel) return;
 
-    // --- ЛОГИКА ЕГОРА (Идет к машине) ---
+    // Логика Егора
     if (egor.state === 'walking') {
       let dx = car.x - egor.x;
       let dy = car.y - egor.y;
@@ -214,12 +219,13 @@
         egor.x += (dx / dist) * egor.speed;
         egor.y += (dy / dist) * egor.speed;
       } else {
-        egor.state = 'inCar'; // Сел в машину
+        egor.state = 'inCar';
       }
     }
 
-    // --- ДВИЖЕНИЕ ---
+    // ФИЗИКА ИГРОКА И МАШИНЫ
     if (gameState.inCar) {
+      // Машина
       if (isUp()) car.speed += car.accel;
       if (isDown()) car.speed -= car.accel;
       car.speed *= car.friction;
@@ -236,21 +242,47 @@
 
       player.x = car.x; player.y = car.y;
     } else {
+      // Человек (плавное движение)
       let dx = 0, dy = 0;
       if (isUp()) dy -= 1;
       if (isDown()) dy += 1;
       if (isLeft()) dx -= 1;
       if (isRight()) dx += 1;
-      if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
-      player.x += dx * player.speed;
-      player.y += dy * player.speed;
+
+      if (dx !== 0 || dy !== 0) {
+        // Нормализация вектора
+        const len = Math.hypot(dx, dy);
+        dx /= len; dy /= len;
+        
+        // Угол, куда хочет идти игрок
+        let targetAngle = Math.atan2(dy, dx);
+        
+        // Плавный поворот в сторону движения
+        let angleDiff = targetAngle - player.angle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        
+        player.angle += angleDiff * player.turnSpeed;
+        
+        // Разгон
+        player.speed += player.accel;
+        if (player.speed > player.maxSpeed) player.speed = player.maxSpeed;
+      } else {
+        // Торможение (трение)
+        player.speed *= player.friction;
+        if (player.speed < 0.1) player.speed = 0;
+      }
+
+      // Движение вперед по углу
+      player.x += Math.cos(player.angle) * player.speed;
+      player.y += Math.sin(player.angle) * player.speed;
     }
 
     // Ограничение мира
-    if (player.x < 0) player.x = 0;
-    if (player.y < 0) player.y = 0;
-    if (player.x > WORLD_SIZE) player.x = WORLD_SIZE;
-    if (player.y > WORLD_SIZE) player.y = WORLD_SIZE;
+    if (player.x < 0) { player.x = 0; player.speed = 0; }
+    if (player.y < 0) { player.y = 0; player.speed = 0; }
+    if (player.x > WORLD_SIZE) { player.x = WORLD_SIZE; player.speed = 0; }
+    if (player.y > WORLD_SIZE) { player.y = WORLD_SIZE; player.speed = 0; }
     if (car.x < 0) { car.x = 0; car.speed = 0; }
     if (car.y < 0) { car.y = 0; car.speed = 0; }
     if (car.x > WORLD_SIZE) { car.x = WORLD_SIZE; car.speed = 0; }
@@ -266,14 +298,26 @@
   }
 
   // --- ОТРИСОВКА ---
-  function drawHuman(x, y, color, name) {
-    ctx.save(); ctx.translate(x, y);
-    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0, 25, 15, 8, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(0, -20, 10, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = color; ctx.fillRect(-10, -10, 20, 30);
-    ctx.fillStyle = '#333'; ctx.fillRect(-9, 20, 7, 15); ctx.fillRect(2, 20, 7, 15);
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.fillText(name, 0, -40);
+  function drawHuman(x, y, color, name, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    
+    // Тень рисуем до поворота (чтобы она всегда была снизу)
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(0, 15, 15, 8, 0, 0, Math.PI*2); ctx.fill();
+
+    // Поворачиваем человечка в сторону движения (-PI/2 чтобы смотрел вверх по умолчанию)
+    ctx.rotate(angle + Math.PI/2);
+
+    // Рисуем человечка (лицом вверх)
+    ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(0, -20, 10, 0, Math.PI*2); ctx.fill(); // Голова
+    ctx.fillStyle = color; ctx.fillRect(-10, -10, 20, 30); // Тело
+    ctx.fillStyle = '#333'; ctx.fillRect(-9, 20, 7, 15); ctx.fillRect(2, 20, 7, 15); // Ноги
+
     ctx.restore();
+
+    // Имя (не поворачивается)
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.fillText(name, x, y - 40);
   }
 
   function drawCar() {
@@ -293,8 +337,8 @@
 
     // Дороги
     ctx.fillStyle = '#333';
-    ctx.fillRect(WORLD_SIZE/2 - ROAD_WIDTH/2, 0, ROAD_WIDTH, WORLD_SIZE); // Вертикальная
-    ctx.fillRect(0, WORLD_SIZE/2 - ROAD_WIDTH/2, WORLD_SIZE, ROAD_WIDTH); // Горизонтальная
+    ctx.fillRect(WORLD_SIZE/2 - ROAD_WIDTH/2, 0, ROAD_WIDTH, WORLD_SIZE);
+    ctx.fillRect(0, WORLD_SIZE/2 - ROAD_WIDTH/2, WORLD_SIZE, ROAD_WIDTH);
 
     // Разметка
     ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4; ctx.setLineDash([40, 40]);
@@ -302,26 +346,24 @@
     ctx.beginPath(); ctx.moveTo(0, WORLD_SIZE/2); ctx.lineTo(WORLD_SIZE, WORLD_SIZE/2); ctx.stroke();
     ctx.setLineDash([]);
 
-    // Трава/кусты/деревья (оптимизация: рисуем только то, что видно)
+    // Кусты и деревья
     bushes.forEach(b => {
       if (b.x > camera.x - 50 && b.x < camera.x + W + 50 && b.y > camera.y - 50 && b.y < camera.y + H + 50) {
         ctx.fillStyle = '#1e4d1e'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
       }
     });
-
     trees.forEach(t => {
       if (t.x > camera.x - 100 && t.x < camera.x + W + 100 && t.y > camera.y - 100 && t.y < camera.y + H + 100) {
-        ctx.fillStyle = '#2c1e16'; ctx.fillRect(t.x - 5, t.y, 10, 20); // Ствол
-        ctx.fillStyle = '#1a3b1a'; ctx.beginPath(); ctx.arc(t.x, t.y - 10, t.r, 0, Math.PI*2); ctx.fill(); // Крона
+        ctx.fillStyle = '#2c1e16'; ctx.fillRect(t.x - 5, t.y, 10, 20);
+        ctx.fillStyle = '#1a3b1a'; ctx.beginPath(); ctx.arc(t.x, t.y - 10, t.r, 0, Math.PI*2); ctx.fill();
       }
     });
 
     // Фонари
     lights.forEach(l => {
       if (l.x > camera.x - 50 && l.x < camera.x + W + 50 && l.y > camera.y - 50 && l.y < camera.y + H + 50) {
-        ctx.fillStyle = '#555'; ctx.fillRect(l.x - 2, l.y - 20, 4, 40); // Столб
-        ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(l.x, l.y - 20, 8, 0, Math.PI*2); ctx.fill(); // Лампа
-        // Свет
+        ctx.fillStyle = '#555'; ctx.fillRect(l.x - 2, l.y - 20, 4, 40);
+        ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(l.x, l.y - 20, 8, 0, Math.PI*2); ctx.fill();
         const grad = ctx.createRadialGradient(l.x, l.y - 20, 5, l.x, l.y - 20, 60);
         grad.addColorStop(0, 'rgba(241, 196, 15, 0.3)'); grad.addColorStop(1, 'rgba(241, 196, 15, 0)');
         ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(l.x, l.y - 20, 60, 0, Math.PI*2); ctx.fill();
@@ -334,27 +376,28 @@
         ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center';
         ctx.fillText(s.name, s.x + s.w/2, s.y - 10);
-        // Вход
         ctx.fillStyle = '#333'; ctx.fillRect(s.x + s.w/2 - 20, s.y + s.h - 10, 40, 10);
       }
     });
 
     // Персонажи
-    if (egor.state !== 'inCar') drawHuman(egor.x, egor.y, egor.color, egor.name);
-    if (!gameState.inCar) drawHuman(player.x, player.y, player.color, player.name);
+    if (egor.state !== 'inCar') drawHuman(egor.x, egor.y, egor.color, egor.name, 0); // Егор смотрит вниз
+    if (!gameState.inCar) drawHuman(player.x, player.y, player.color, player.name, player.angle); // Равиль смотрит по направлению
     drawCar();
 
     // Подсказки
     if (!gameState.activePanel) {
       ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
       if (gameState.inCar) {
-        ctx.fillText("ПРОБЕЛ - позвать / выйти из машины", player.x, player.y - 60);
+        ctx.fillText("ПРОБЕЛ - позвать Егора (если рядом)", player.x, player.y - 60);
       } else {
         shops.forEach(s => {
            if (player.x > s.x && player.x < s.x + s.w && player.y > s.y && player.y < s.y + s.h) {
              ctx.fillText("ПРОБЕЛ - зайти в " + s.name, player.x, player.y - 50);
            }
         });
+        const distToCar = Math.hypot(player.x - car.x, player.y - car.y);
+        if (distToCar < 100) ctx.fillText("ПРОБЕЛ - сесть в машину", car.x, car.y - 50);
       }
     }
 
