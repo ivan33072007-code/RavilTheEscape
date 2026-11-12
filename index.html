@@ -26,6 +26,9 @@
 
   #clock { position: absolute; bottom: 30px; right: 30px; color: #fff; font-weight: bold; font-size: 28px; text-shadow: 0 2px 10px #000; pointer-events: none; letter-spacing: 2px; }
 
+  #respawn-btn { position: absolute; top: 20px; right: 80px; pointer-events: auto; width: 50px; height: 50px; border-radius: 50%; background: rgba(30, 30, 30, 0.8); color: #fff; border: 2px solid #e74c3c; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: 0.2s; }
+  #respawn-btn:hover { background: rgba(231, 76, 60, 0.8); }
+
   #settings-btn { position: absolute; top: 20px; right: 20px; pointer-events: auto; width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: 0.2s; }
   #settings-btn:hover { background: #fff; color: #000; }
   
@@ -63,13 +66,14 @@
         <span id="fuel-text">50 / 50 Л</span>
     </div>
     <div id="fuel-bar-container"><div id="fuel-bar"></div></div>
-    <div id="fuel-range">Хватит на ~1000 км</div>
+    <div id="fuel-range">Хватит на ~5000 км</div>
     
     <div id="hud-mission">Пассажир: Егор (Следуйте по стрелке)</div>
   </div>
 
   <div id="clock">06:00</div>
 
+  <button id="respawn-btn" onclick="respawnCar()" title="Выбраться из застревания">🔄</button>
   <button id="settings-btn" onclick="toggleSettings()">⚙️</button>
 
   <div id="settings-panel">
@@ -173,6 +177,7 @@
     }
   }
 
+  // РЕАЛИСТИЧНЫЙ ЗВУК ШАГОВ (Тише и глуше)
   function playFootstep() {
     if (!audioCtx) return;
     const now = audioCtx.currentTime;
@@ -181,8 +186,8 @@
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
     const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
-    const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 900; filter.Q.value = 1.5;
-    const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.4, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+    const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 400; filter.Q.value = 1.0; // Ниже частота
+    const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08); // Тише
     noise.connect(filter); filter.connect(gain); gain.connect(masterGain); noise.start(now);
   }
 
@@ -235,8 +240,9 @@
 
   const WORLD_SIZE = 10000; 
   const ROAD_WIDTH = 300;
-  const roadsX = [2500, 5000, 7500];
-  const roadsY = [2500, 5000, 7500];
+  // БОЛЕЕ РАЗНООБРАЗНЫЕ ДОРОГИ (Не просто крест)
+  const roadsX = [1500, 3500, 5000, 6500, 8500];
+  const roadsY = [1500, 3500, 5000, 6500, 8500];
 
   let gameState = { inCar: false, activePanel: null };
   let stats = { money: 2000, mood: 50 };
@@ -245,12 +251,11 @@
   const player = { x: 5000, y: 5300, angle: -Math.PI/2, speed: 0, walkSpeed: 1.0, sprintSpeed: 2.0, accel: 0.08, friction: 0.85, turnSpeed: 0.15, color: '#3498db', name: "Равиль", walkCycle: 0, stamina: 100, maxStamina: 100, isSprinting: false, radius: 18, lastStepTrigger: 0 };
   const egor = { x: 4900, y: 5200, speed: 1.5, color: '#e74c3c', name: "Егор", state: 'idle', walkCycle: 0, angle: 0, radius: 18 };
   
-  // НОВАЯ СИСТЕМА ТОПЛИВА И ХАРАКТЕРИСТИК
   const car = { 
     x: 5000, y: 5000, angle: -Math.PI/2, vx: 0, vy: 0, speed: 0, 
     maxSpeed: 22, accel: 0.22, turnSpeed: 0.05, grip: 0.15, drag: 0.97, 
     width: 150, height: 75, color: '#0a0a0a', isEngineOn: false, lastGear: 0, 
-    fuel: 50, maxFuel: 50, consumption: 0.003 // Расход топлива
+    fuel: 50, maxFuel: 50, consumption: 0.0001 // ОЧЕНЬ МЕДЛЕННЫЙ РАСХОД
   };
   
   const camera = { x: 0, y: 0 };
@@ -259,6 +264,7 @@
   const trees = [];
   const bushes = [];
   const lights = [];
+  const houses = []; // НОВЫЕ ДОМА
   
   const shops = [
     { id: 'coffee', x: 5500, y: 1800, w: 200, h: 150, name: "Кофейня", color: "#8e44ad", type: 'food', items: [{ name: "Кофе", price: 150, mood: 15 }] },
@@ -276,12 +282,30 @@
   function initWorld() {
     for(let i=0; i<800; i++) {
       let tx = Math.random() * WORLD_SIZE; let ty = Math.random() * WORLD_SIZE;
-      if (!isOnRoad(tx, ty)) trees.push({ x: tx, y: ty, r: 30 + Math.random()*20 });
+      if (!isOnRoad(tx, ty) && (ty < 6500 || ty > 7500)) trees.push({ x: tx, y: ty, r: 30 + Math.random()*20 });
     }
     for(let i=0; i<600; i++) {
       let bx = Math.random() * WORLD_SIZE; let by = Math.random() * WORLD_SIZE;
-      if (!isOnRoad(bx, by)) bushes.push({ x: bx, y: by, r: 15 + Math.random()*10 });
+      if (!isOnRoad(bx, by) && (by < 6500 || by > 7500)) bushes.push({ x: bx, y: by, r: 15 + Math.random()*10 });
     }
+    
+    // Генерация домов (чтобы город не был пустым)
+    for(let i=0; i<60; i++) {
+        let hx = Math.random() * WORLD_SIZE;
+        let hy = Math.random() * WORLD_SIZE;
+        let hw = 150 + Math.random() * 150;
+        let hh = 150 + Math.random() * 150;
+        
+        // Не спавним на дорогах, реке и магазинах
+        if (!isOnRoad(hx, hy) && (hy < 6500 || hy > 7500)) {
+            let overlap = false;
+            for(let s of shops) { if (hx < s.x + s.w + 100 && hx + hw > s.x - 100 && hy < s.y + s.h + 100 && hy + hh > s.y - 100) overlap = true; }
+            if(!overlap) {
+                houses.push({ x: hx, y: hy, w: hw, h: hh, color: `hsl(${Math.random()*360}, 20%, 30%)` });
+            }
+        }
+    }
+
     const lightOffset = ROAD_WIDTH/2 + 50; const step = 400;
     for (let rx of roadsX) {
       for (let y = 0; y < WORLD_SIZE; y += step) {
@@ -357,6 +381,13 @@
     }
   }
 
+  function respawnCar() {
+    car.x = 5000; car.y = 5000; car.vx = 0; car.vy = 0; car.angle = -Math.PI/2; car.isEngineOn = false;
+    player.x = 5000; player.y = 5100; gameState.inCar = false;
+    if (egor.state === 'inCar') { egor.x = 5000; egor.y = 5000; egor.state = 'idle'; mission.active = false; }
+    stopEngineSound(); bgMusic.pause();
+  }
+
   function interact() {
     if (gameState.activePanel) return;
     
@@ -401,7 +432,7 @@
   }
 
   // ==========================================
-  // БРОНЕБОЙНЫЕ КОЛЛИЗИИ (С ВЫТАЛКИВАНИЕМ)
+  // ФИКС РЕЧКИ И ДОМОВ (ВЫТАЛКИВАНИЕ)
   // ==========================================
   
   function getCarCircles() {
@@ -430,7 +461,6 @@
     return isCircleHittingCar(egor.x, egor.y, egor.radius) || isCircleHittingCar(egor.x, egor.y - 25, 15);
   }
 
-  // Проверка коллизий машины со зданиями и рекой
   function checkCarEnvironmentCollision(cx, cy) {
     let tempCircles = [
       { x: cx + Math.cos(car.angle) * 45, y: cy + Math.sin(car.angle) * 45, r: 35 },
@@ -438,8 +468,8 @@
       { x: cx - Math.cos(car.angle) * 45, y: cy - Math.sin(car.angle) * 45, r: 35 }
     ];
 
-    // Столкновение со зданиями
-    for (let s of shops) {
+    // Столкновение со зданиями и домами
+    for (let s of [...shops, ...houses]) {
       for (let c of tempCircles) {
         let closestX = Math.max(s.x, Math.min(c.x, s.x + s.w));
         let closestY = Math.max(s.y, Math.min(c.y, s.y + s.h));
@@ -447,17 +477,14 @@
       }
     }
 
-    // Столкновение с рекой (река на y=7000, ширина 400)
+    // Столкновение с рекой (река на y=6800, ширина 400)
     let riverTop = 6800;
     let riverBottom = 7200;
     
     for (let c of tempCircles) {
         if (c.y + c.r > riverTop && c.y - c.r < riverBottom) {
-            // Если мы не на мосту
             let onBridge = false;
-            for (let rx of roadsX) {
-                if (Math.abs(c.x - rx) < 150) onBridge = true; // Ширина моста = ширина дороги
-            }
+            for (let rx of roadsX) { if (Math.abs(c.x - rx) < 150) onBridge = true; }
             if (!onBridge) return true;
         }
     }
@@ -507,8 +534,8 @@
 
     if (gameState.inCar) {
       if (car.isEngineOn) {
-        // Трата бензина
-        car.fuel -= car.consumption + (Math.abs(car.speed) * 0.0005);
+        // ОЧЕНЬ МЕДЛЕННЫЙ РАСХОД ТОПЛИВА
+        car.fuel -= car.consumption + (Math.abs(car.speed) * 0.00005);
         if (car.fuel <= 0) {
           car.fuel = 0; car.isEngineOn = false; car.speed = 0; car.vx = 0; car.vy = 0;
           stopEngineSound(); bgMusic.pause();
@@ -544,17 +571,27 @@
         if (gear > car.lastGear && car.speed > 0) playExhaustPop();
         car.lastGear = gear;
 
-        // БРОНЕБОЙНАЯ ФИЗИКА СТОЛКНОВЕНИЙ (РАЗДЕЛЬНО X И Y)
+        // СКОЛЬЖЕНИЕ И ОТТАЛКИВАНИЕ ОТ РЕКИ
         let oldX = car.x; car.x += car.vx;
         if (checkCarEnvironmentCollision(car.x, car.y)) {
-            car.x = oldX; // Откат
-            car.vx *= -0.2; // Легкий отскок
+            car.x = oldX; car.vx *= -0.2; 
         }
 
         let oldY = car.y; car.y += car.vy;
         if (checkCarEnvironmentCollision(car.x, car.y)) {
-            car.y = oldY; // Откат
-            car.vy *= -0.2; 
+            car.y = oldY; car.vy *= -0.2; 
+            
+            // Если мы врезались в реку, мягко отталкиваем
+            if (car.y > 6600 && car.y < 7400) {
+                let onBridge = false;
+                for (let rx of roadsX) { if (Math.abs(car.x - rx) < 150) onBridge = true; }
+                if (!onBridge) {
+                    // Выталкиваем
+                    if (car.y < 7000) car.y = 6600 - car.height/2;
+                    else car.y = 7400 + car.height/2;
+                    car.vy = 0; // Гасим скорость в направлении реки
+                }
+            }
         }
 
         updateEngineSound(currentSpeed);
@@ -595,11 +632,10 @@
 
       let nextX = player.x + Math.cos(player.angle) * player.speed; let nextY = player.y + Math.sin(player.angle) * player.speed;
       let hitX = false; player.x = nextX;
-      for (let s of shops) {
+      for (let s of [...shops, ...houses]) {
         let closestX = Math.max(s.x, Math.min(player.x, s.x + s.w)); let closestY = Math.max(s.y, Math.min(player.y, s.y + s.h));
         if ((player.x - closestX)**2 + (player.y - closestY)**2 < player.radius**2) hitX = true;
       }
-      // Река для пешехода
       if (player.y + player.radius > 6800 && player.y - player.radius < 7200) {
           let onBridge = false;
           for (let rx of roadsX) { if (Math.abs(player.x - rx) < 150) onBridge = true; }
@@ -610,7 +646,7 @@
       if (hitX) player.x -= Math.cos(player.angle) * player.speed;
 
       let hitY = false; player.y = nextY;
-      for (let s of shops) {
+      for (let s of [...shops, ...houses]) {
         let closestX = Math.max(s.x, Math.min(player.x, s.x + s.w)); let closestY = Math.max(s.y, Math.min(player.y, s.y + s.h));
         if ((player.x - closestX)**2 + (player.y - closestY)**2 < player.radius**2) hitY = true;
       }
@@ -667,7 +703,6 @@
     if (text) { hint.innerHTML = text; hint.style.display = 'block'; } else { hint.style.display = 'none'; }
   }
 
-  // --- ОТРИСОВКА ---
   function drawHuman(x, y, color, name, walkCycle, isRavil, angle) {
     ctx.save(); ctx.translate(x, y); 
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(0, 0, 18, 9, 0, 0, Math.PI*2); ctx.fill();
@@ -788,7 +823,7 @@
     ctx.fillStyle = '#1a5276'; 
     ctx.fillRect(0, 6800, WORLD_SIZE, 400);
     ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    for(let i=0; i<100; i++) {
+    for(let i=0; i<200; i++) {
         ctx.fillRect(Math.random() * WORLD_SIZE, 6800 + Math.random() * 400, 50, 5);
     }
 
@@ -799,17 +834,17 @@
 
     // Круговая развязка (Центр)
     let centerR = 400;
-    ctx.fillStyle = '#2d5a27'; // Трава внутри
+    ctx.fillStyle = '#2d5a27'; 
     ctx.beginPath(); ctx.arc(5000, 5000, centerR - ROAD_WIDTH/2, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#333'; // Асфальт
+    ctx.fillStyle = '#333'; 
     ctx.beginPath(); ctx.arc(5000, 5000, centerR + ROAD_WIDTH/2, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#2d5a27'; // Трава снаружи (обратно)
+    ctx.fillStyle = '#2d5a27'; 
     ctx.beginPath(); ctx.arc(5000, 5000, centerR - ROAD_WIDTH/2, 0, Math.PI*2); ctx.fill();
 
     // Разметка
     ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4; ctx.setLineDash([40, 40]);
     for (let rx of roadsX) { 
-        if(rx === 5000) { // Пропускаем центр
+        if(rx === 5000) {
             ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx, 5000 - centerR - 50); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(rx, 5000 + centerR + 50); ctx.lineTo(rx, WORLD_SIZE); ctx.stroke();
         } else {
@@ -825,8 +860,6 @@
         }
     }
     ctx.setLineDash([]);
-    
-    // Разметка на кольце
     ctx.beginPath(); ctx.arc(5000, 5000, centerR, 0, Math.PI*2); ctx.strokeStyle = '#f1c40f'; ctx.setLineDash([20, 20]); ctx.stroke(); ctx.setLineDash([]);
 
     // Мосты
@@ -835,7 +868,6 @@
         ctx.fillRect(rx - ROAD_WIDTH/2, 6800 - 10, ROAD_WIDTH, 420);
         ctx.strokeStyle = '#222'; ctx.lineWidth = 4;
         ctx.strokeRect(rx - ROAD_WIDTH/2, 6800 - 10, ROAD_WIDTH, 420);
-        // Перила
         ctx.fillStyle = '#333';
         for(let j=6800; j<7200; j+=50) {
             ctx.fillRect(rx - ROAD_WIDTH/2 - 10, j, 10, 10);
@@ -843,15 +875,34 @@
         }
     }
 
-    // Асфальтовые зоны возле зданий (Подъезды)
+    // Асфальтовые подъезды (Исправлены, теперь ровные)
     shops.forEach(s => {
       if (s.x > camera.x - 300 && s.x < camera.x + W + 300 && s.y > camera.y - 300 && s.y < camera.y + H + 300) {
         ctx.fillStyle = '#2a2a2a'; 
-        ctx.fillRect(s.x - 100, s.y - 100, s.w + 200, s.h + 200);
+        // Рисуем площадку строго под зданием и чуть впереди
+        ctx.fillRect(s.x - 20, s.y + s.h, s.w + 40, 100); 
         
+        // Парковочные линии
         ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
-        for(let i = -80; i < s.w + 80; i+=40) { 
-            ctx.beginPath(); ctx.moveTo(s.x + i, s.y - 80); ctx.lineTo(s.x + i, s.y - 20); ctx.stroke(); 
+        for(let i = 0; i < s.w + 40; i+=40) { 
+            ctx.beginPath(); ctx.moveTo(s.x - 20 + i, s.y + s.h); ctx.lineTo(s.x - 20 + i, s.y + s.h + 40); ctx.stroke(); 
+        }
+      }
+    });
+
+    // Дома
+    houses.forEach(h => {
+      if (h.x > camera.x - 300 && h.x < camera.x + W + 300 && h.y > camera.y - 300 && h.y < camera.y + H + 300) {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(h.x + 10, h.y + 10, h.w, h.h);
+        ctx.fillStyle = h.color; ctx.fillRect(h.x, h.y, h.w, h.h);
+        // Крыша
+        ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(h.x, h.y, h.w, 30);
+        // Окна
+        ctx.fillStyle = '#111';
+        for(let wx = h.x + 20; wx < h.x + h.w - 20; wx += 40) {
+            for(let wy = h.y + 50; wy < h.y + h.h - 20; wy += 40) {
+                ctx.fillRect(wx, wy, 20, 20);
+            }
         }
       }
     });
@@ -1012,7 +1063,6 @@
     const container = document.getElementById('garage-items');
     container.innerHTML = '';
     
-    // Цвета
     const colors = [
         {name: "Черный (Сток)", val: "#0a0a0a", price: 0},
         {name: "Синий", val: "#2980b9", price: 500},
@@ -1030,7 +1080,6 @@
     });
     container.appendChild(colorDiv);
 
-    // Двигатели
     const engines = [
         {name: "Стоковый", speed: 22, accel: 0.22, turn: 0.05, price: 0},
         {name: "Спортивный (Stage 1)", speed: 32, accel: 0.28, turn: 0.06, price: 1500},
