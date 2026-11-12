@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Adventure 2D - Novy Byt MEGA EDITION</title>
+<title>Adventure 2D - Novy Byt Expanded</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -169,7 +169,7 @@
 
 <script>
   // ============================================================================
-  // ПОЛИФИЛЛЫ
+  // ПОЛИФИЛЛЫ ДЛЯ СТАРЫХ БРАУЗЕРОВ
   // ============================================================================
   if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
     CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
@@ -199,7 +199,6 @@
   window.addEventListener('resize', resize); 
   resize();
 
-  // Проверка на мобильное устройство
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
   if (isMobile) {
     document.getElementById('mobile-controls').style.display = 'block';
@@ -217,7 +216,7 @@
   let rainDrops = [];
   let clouds = [];
 
-  // Инициализация облаков
+  // Создаем облака
   for (let i = 0; i < 20; i++) {
     clouds.push({ x: Math.random() * 20000, y: Math.random() * 20000, scale: 0.5 + Math.random(), speed: 0.2 + Math.random() * 0.5 });
   }
@@ -246,7 +245,7 @@
       }
     } else {
       weather.rainIntensity = Math.max(0, weather.rainIntensity - 0.01);
-      rainDrops = [];
+      rainDrops.length = 0;
     }
 
     // Движение облаков
@@ -316,7 +315,7 @@
       engineOsc2.start(); 
       engineGain.gain.value = 0;
 
-      // Фоновый звук города
+      // Фоновый звук
       ambientOsc = audioCtx.createOscillator(); 
       ambientGain = audioCtx.createGain();
       ambientOsc.type = 'triangle'; 
@@ -367,7 +366,7 @@
   });
 
   // ============================================================================
-  // ЧАСТИЦЫ И СЛЕДЫ
+  // ЧАСТИЦЫ, СЛЕДЫ И ЭФФЕКТЫ
   // ============================================================================
   let particles = [];
   let skidmarks = [];
@@ -420,7 +419,7 @@
   }
 
   // ============================================================================
-  // КАРТА И МИР
+  // КАРТА МИРА И ДОРОГИ
   // ============================================================================
   const WORLD_SIZE = 16000;
   const ROAD_WIDTH = 300;
@@ -442,6 +441,8 @@
   ];
 
   const waterAreas = [{ x: 0, y: 7500, w: 3500, h: 4000 }];
+  
+  // Заполняем блики на воде
   waterAreas.forEach(w => {
     w.sparkles = [];
     for (let i = 0; i < 150; i++) {
@@ -463,21 +464,25 @@
   }
   
   function isOnRoad(x, y, margin = 0) {
-    for (let r of roadSegments) if (distToSegmentSq(x, y, r.x1, r.y1, r.x2, r.y2) < (r.w/2 + margin)**2) return true;
+    for (let r of roadSegments) {
+      if (distToSegmentSq(x, y, r.x1, r.y1, r.x2, r.y2) < (r.w/2 + margin)**2) return true;
+    }
     return false;
   }
   
   function isInWater(x, y) {
-    for (let w of waterAreas) if (x > w.x && x < w.x+w.w && y > w.y && y < w.y+w.h) {
+    for (let w of waterAreas) {
+      if (x > w.x && x < w.x+w.w && y > w.y && y < w.y+w.h) {
         if (distToSegmentSq(x, y, 0, 7500, 4000, 7500) < (SMALL_ROAD_WIDTH/2 + 20)**2) return false;
         if (distToSegmentSq(x, y, 0, 10000, 4000, 10000) < (ROAD_WIDTH/2 + 20)**2) return false;
         return true;
+      }
     }
     return false;
   }
 
   // ============================================================================
-  // ИГРОВЫЕ ДАННЫЕ И СУЩНОСТИ
+  // СУЩНОСТИ И ИГРОВЫЕ ДАННЫЕ
   // ============================================================================
   let gameState = { inCar: false, activePanel: null, activeQuest: null, wanted: 0 };
   let stats = { money: 2000, mood: 50, hasNitro: false, inventory: [] };
@@ -497,11 +502,12 @@
   
   const camera = { x: 0, y: 0 };
   const keys = {};
+  
   const trees = [];
   const houses = [];
   const streetLights = [];
   const trafficCars = [];
-  const policeCars = [];
+  const policeCars = []; // ВАЖНО: объявлено через const
 
   const locations = [
     { id: 'pyaterochka', x: 7200, y: 5500, w: 200, h: 150, name: "Пятерочка", color: "#e74c3c", type: 'shop' },
@@ -529,35 +535,35 @@
   ];
 
   function initWorld() {
-    // Дома и деревья
+    // Генерация домов и деревьев
     for (let x = 1000; x < WORLD_SIZE; x += 350) {
-        for (let y = 1000; y < WORLD_SIZE; y += 350) {
-            if (Math.hypot(x - player.x, y - player.y) < 600) continue;
-            if (isOnRoad(x, y, 100) || isInWater(x, y)) continue;
-            
-            let overlap = false;
-            for(let s of locations) { 
-              if (x < s.x + s.w + 100 && x + 150 > s.x - 100 && y < s.y + s.h + 100 && y + 150 > s.y - 100) overlap = true; 
-            }
-            
-            if (!overlap) {
-                if (Math.random() > 0.6) {
-                  trees.push({ x, y, r: 30 + Math.random()*20 });
-                } else {
-                    let hw = 80 + Math.random()*60, hh = 80 + Math.random()*60;
-                    if (!isOnRoad(x+hw, y, 40) && !isOnRoad(x, y+hh, 40) && !isOnRoad(x+hw, y+hh, 40)) {
-                        houses.push({ x, y, w: hw, h: hh, color: `hsl(${Math.random()*360}, 15%, 35%)` });
-                    }
-                }
-            }
+      for (let y = 1000; y < WORLD_SIZE; y += 350) {
+        if (Math.hypot(x - player.x, y - player.y) < 600) continue;
+        if (isOnRoad(x, y, 100) || isInWater(x, y)) continue;
+        
+        let overlap = false;
+        for(let s of locations) { 
+          if (x < s.x + s.w + 100 && x + 150 > s.x - 100 && y < s.y + s.h + 100 && y + 150 > s.y - 100) overlap = true; 
         }
+        
+        if (!overlap) {
+          if (Math.random() > 0.6) {
+            trees.push({ x, y, r: 30 + Math.random()*20 });
+          } else {
+            let hw = 80 + Math.random()*60, hh = 80 + Math.random()*60;
+            if (!isOnRoad(x+hw, y, 40) && !isOnRoad(x, y+hh, 40) && !isOnRoad(x+hw, y+hh, 40)) {
+              houses.push({ x, y, w: hw, h: hh, color: `hsl(${Math.random()*360}, 15%, 35%)` });
+            }
+          }
+        }
+      }
     }
     
-    // Фонари вдоль главных дорог
+    // Генерация фонарей
     for (let i = 2000; i < WORLD_SIZE; i += 400) {
-        if (!isInWater(i, 6000)) streetLights.push({ x: i, y: 5800 });
-        if (!isInWater(i, 10000)) streetLights.push({ x: i, y: 9800 });
-        if (!isInWater(8000, i)) streetLights.push({ x: 7800, y: i });
+      if (!isInWater(i, 6000)) streetLights.push({ x: i, y: 5800 });
+      if (!isInWater(i, 10000)) streetLights.push({ x: i, y: 9800 });
+      if (!isInWater(8000, i)) streetLights.push({ x: 7800, y: i });
     }
 
     // Спавн трафика
@@ -574,7 +580,6 @@
     let x = road.x1 + (road.x2 - road.x1) * progress;
     let y = road.y1 + (road.y2 - road.y1) * progress;
     
-    // Сдвигаем на правую полосу
     if (isHorizontal) {
       y += road.w / 4;
       if (road.x1 < road.x2) x -= 100; else x += 100;
@@ -596,7 +601,7 @@
   }
 
   // ============================================================================
-  // УПРАВЛЕНИЕ И UI
+  // УПРАВЛЕНИЕ И ИНТЕРФЕЙС
   // ============================================================================
   window.addEventListener('blur', () => { for(let k in keys) keys[k] = false; });
   window.addEventListener('keydown', (e) => {
@@ -740,7 +745,7 @@
   }
 
   // ============================================================================
-  // СИСТЕМА СОХРАНЕНИЯ
+  // СОХРАНЕНИЕ И ЗАГРУЗКА
   // ============================================================================
   function saveGame() {
     const saveData = {
@@ -819,7 +824,6 @@
   function openDialogue(npc) {
     let title = npc.name, text = "", choices = [];
 
-    // Логика квестов
     if (npc.id === 'misha') {
       text = "Ммм... Шаурма. Слушай, Равиль, принеси мне шаурму от Ноны, а я тебе сотку накину!";
       if (stats.inventory.includes("Шаурма")) {
@@ -896,12 +900,10 @@
       choices.push({ text: "Ничего.", action: () => closeDialogue() });
     }
 
-    // Настройка UI диалога
     gameState.activePanel = 'dialogue'; 
     document.getElementById('dialogue-panel').style.display = 'flex';
     document.getElementById('dialogue-title').textContent = title;
     
-    // Портрет (эмодзи в зависимости от цвета)
     const portrait = document.getElementById('dialogue-portrait');
     if (npc.id === 'nefed') portrait.textContent = '⛪';
     else if (npc.id === 'shelukha') portrait.textContent = '🏎️';
@@ -916,7 +918,6 @@
     textContainer.textContent = "";
     choicesContainer.innerHTML = "";
     
-    // Эффект печатной машинки
     clearInterval(typewriterInterval);
     let charIndex = 0;
     typewriterInterval = setInterval(() => {
@@ -925,7 +926,6 @@
       if (charIndex >= text.length) clearInterval(typewriterInterval);
     }, 20);
 
-    // Добавляем кнопки с задержкой
     setTimeout(() => {
       choices.forEach(c => { 
         const btn = document.createElement('button'); 
@@ -1042,7 +1042,7 @@
   }
 
   // ============================================================================
-  // ФИЗИКА И КОЛЛИЗИИ
+  // ФИЗИКА И ОБНОВЛЕНИЕ ИГРОВОЙ ЛОГИКИ
   // ============================================================================
   function getCarCircles(cx, cy, angle, w, h) {
     return [
@@ -1074,7 +1074,7 @@
       }
     }
     
-    // Деревья (только стволы)
+    // Деревья (стволы)
     for (let t of trees) {
       if (Math.abs(t.x - cx) > 200 || Math.abs(t.y - cy) > 200) continue;
       for (let c of circles) {
@@ -1117,14 +1117,11 @@
     }
   }
 
-  // ============================================================================
-  // ОБНОВЛЕНИЕ ИГРОВОЙ ЛОГИКИ
-  // ============================================================================
   function update() {
     updateWeather();
     if (gameState.activePanel) return;
 
-    // Частицы и следы
+    // Очистка старых частиц
     for(let i = particles.length - 1; i >= 0; i--) { 
       let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.04; 
       if(p.life <= 0) particles.splice(i, 1); 
@@ -1136,7 +1133,7 @@
 
     spawnSmoke();
 
-    // Трафик
+    // Обновление трафика
     trafficCars.forEach(tc => {
       tc.progress += (tc.speed / Math.hypot(tc.road.x2 - tc.road.x1, tc.road.y2 - tc.road.y1)) * tc.dir;
       if (tc.progress > 1.1) { tc.progress = -0.1; }
@@ -1145,7 +1142,6 @@
       tc.x = tc.road.x1 + (tc.road.x2 - tc.road.x1) * tc.progress;
       tc.y = tc.road.y1 + (tc.road.y2 - tc.road.y1) * tc.progress;
       
-      // Сдвиг на полосу
       let isHorizontal = tc.road.y1 === tc.road.y2;
       if (isHorizontal) {
         tc.y += tc.road.w / 4 * tc.dir;
@@ -1178,12 +1174,14 @@
           showNotif("Полиция вас поймала! Штраф.", "#e74c3c");
           stats.money = Math.max(0, stats.money - 500);
           gameState.wanted = 0;
-          policeCars = [];
-          respawnCar(); // Эвакуация
+          policeCars.length = 0; // ИСПРАВЛЕНО: используем length = 0 вместо перезаписи const
+          respawnCar();
         }
       });
     } else {
-      policeCars = [];
+      if (policeCars.length > 0) {
+        policeCars.length = 0; // ИСПРАВЛЕНО
+      }
     }
 
     // Квесты по локациям
@@ -1240,7 +1238,6 @@
         let vForward = car.vx * forwardX + car.vy * forwardY; 
         let vLateral = car.vx * rightX + car.vy * rightY;
 
-        // Снижаем сцепление в дождь
         let currentGrip = weather.isRaining ? car.grip * 0.5 : car.grip;
         let currentDrag = weather.isRaining ? car.drag * 0.98 : car.drag;
 
@@ -1342,13 +1339,11 @@
       if (hitY) player.y -= Math.sin(player.angle) * player.speed;
     }
 
-    // Ограничение по миру
     if (player.x < 0) player.x = 0; if (player.y < 0) player.y = 0;
     if (player.x > WORLD_SIZE) player.x = WORLD_SIZE; if (player.y > WORLD_SIZE) player.y = WORLD_SIZE;
     if (car.x < 0) car.x = 0; if (car.y < 0) car.y = 0;
     if (car.x > WORLD_SIZE) car.x = WORLD_SIZE; if (car.y > WORLD_SIZE) car.y = WORLD_SIZE;
 
-    // Камера
     camera.x = player.x - W / 2; camera.y = player.y - H / 2;
     if (camera.x < 0) camera.x = 0; if (camera.y < 0) camera.y = 0;
     if (camera.x > WORLD_SIZE - W) camera.x = WORLD_SIZE - W;
@@ -1389,7 +1384,7 @@
   }
 
   // ============================================================================
-  // ОТРИСОВКА ГРАФИКИ
+  // ОТРИСОВКА
   // ============================================================================
   function drawHuman(x, y, color, name, walkCycle, isRavil, angle) {
     ctx.save(); ctx.translate(x, y); 
@@ -1432,7 +1427,7 @@
     // Голова
     ctx.fillStyle = '#fcd0b3'; ctx.beginPath(); ctx.arc(0, -46, 14, 0, Math.PI*2); ctx.fill();
     
-    // Волосы/Шапка
+    // Волосы
     if (isRavil) {
         ctx.fillStyle = '#111';
         if (dir === 0) { 
@@ -1502,7 +1497,7 @@
     ctx.beginPath(); ctx.roundRect(-55, -car.height/2 + 12, 100, car.height - 24, 15); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.roundRect(-50, -car.height/2 + 15, 90, 10, 5); ctx.fill();
 
-    // Фары и свет
+    // Фары
     if (car.isEngineOn) {
       ctx.fillStyle = '#e0f7fa'; 
       ctx.fillRect(car.width/2 - 3, -car.height/2 + 8, 5, 12); ctx.fillRect(car.width/2 - 3, car.height/2 - 20, 5, 12); 
@@ -1549,9 +1544,8 @@
     ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
     
     ctx.fillStyle = '#2980b9';
-    ctx.fillRect(-30, -35, 60, 70); // Синяя полоса
+    ctx.fillRect(-30, -35, 60, 70); 
     
-    // Мигалка
     let flash = Math.floor(Date.now() / 200) % 2;
     ctx.fillStyle = flash === 0 ? '#e74c3c' : '#3498db';
     ctx.fillRect(-10, -10, 20, 20);
@@ -1600,7 +1594,6 @@
 
   function drawSkyAndClouds(timeData) {
     if (timeData.isNight) {
-      // Звезды
       ctx.fillStyle = '#fff';
       for(let i=0; i<100; i++) {
           let sx = (Math.sin(i*123) * 0.5 + 0.5) * W;
@@ -1608,7 +1601,6 @@
           ctx.fillRect(sx, sy, 2, 2);
       }
     } else {
-      // Солнце
       let sunProgress = (Date.now() % DAY_DURATION) / DAY_DURATION;
       let sunX = W * sunProgress;
       let sunY = H * 0.5 - Math.sin(sunProgress * Math.PI) * H * 0.4;
@@ -1616,10 +1608,9 @@
       ctx.beginPath(); ctx.arc(sunX, sunY, 50, 0, Math.PI*2); ctx.fill();
     }
 
-    // Облака
     ctx.fillStyle = 'rgba(255,255,255,0.2)';
     for (let c of clouds) {
-      let screenX = c.x - camera.x * 0.1; // Параллакс
+      let screenX = c.x - camera.x * 0.1;
       let screenY = c.y - camera.y * 0.1;
       if (screenX > -500 && screenX < W + 500 && screenY > -500 && screenY < H + 500) {
         ctx.beginPath();
