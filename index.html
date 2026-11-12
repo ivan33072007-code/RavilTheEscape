@@ -2,168 +2,153 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>2D Adventure</title>
 <style>
-  body { margin: 0; padding: 0; background: #111; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
-  canvas { border: 2px solid #333; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { 
+    background: #111; overflow: hidden; 
+    display: flex; flex-direction: column; justify-content: center; align-items: center; 
+    height: 100vh; font-family: system-ui, sans-serif; 
+  }
   
+  #game-container { position: relative; }
+  canvas { 
+    border: 2px solid #333; box-shadow: 0 0 20px rgba(0,0,0,0.8); 
+    display: block; width: 100%; max-width: 800px; height: auto; 
+  }
+  
+  /* Мобильные кнопки управления */
+  #mobile-controls {
+    display: flex; gap: 10px; margin-top: 15px;
+  }
+  .ctrl-btn {
+    width: 60px; height: 60px; border-radius: 10px;
+    background: #333; color: #fff; border: 1px solid #555;
+    font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    user-select: none; touch-action: manipulation;
+  }
+  .ctrl-btn:active { background: #555; }
+  .ctrl-action {
+    background: #f1c40f; color: #000; font-weight: bold; font-size: 14px; width: 100px;
+  }
+
   /* Интерфейс диалога */
   #dialogue {
     position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-    width: 80%; max-width: 800px;
+    width: 90%; max-width: 700px;
     background: rgba(15, 15, 20, 0.95); border: 2px solid #f1c40f;
     border-radius: 10px; padding: 20px; color: #fff;
     display: none; flex-direction: column; gap: 15px;
+    z-index: 100;
   }
-  #dialogue-text { font-size: 18px; line-height: 1.5; }
+  #dialogue-text { font-size: 16px; line-height: 1.5; }
   #dialogue-choices { display: flex; flex-direction: column; gap: 10px; }
   .choice-btn {
-    background: #333; color: #fff; border: 1px solid #555; padding: 10px;
-    border-radius: 5px; cursor: pointer; text-align: left; transition: 0.2s;
+    background: #333; color: #fff; border: 1px solid #555; padding: 12px;
+    border-radius: 5px; cursor: pointer; text-align: left; transition: 0.2s; font-size: 14px;
   }
   .choice-btn:hover { background: #444; border-color: #fff; }
 </style>
 </head>
 <body>
 
-<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div id="game-container">
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
 
-<!-- Окно диалога -->
-<div id="dialogue">
-  <div id="dialogue-text"></div>
-  <div id="dialogue-choices"></div>
+  <div id="dialogue">
+    <div id="dialogue-text"></div>
+    <div id="dialogue-choices"></div>
+  </div>
+</div>
+
+<!-- Кнопки для телефона/планшета -->
+<div id="mobile-controls">
+  <button class="ctrl-btn" ontouchstart="keys['ArrowUp']=true" ontouchend="keys['ArrowUp']=false" onmousedown="keys['ArrowUp']=true" onmouseup="keys['ArrowUp']=false" onmouseleave="keys['ArrowUp']=false">↑</button>
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    <div style="display:flex; gap:10px;">
+      <button class="ctrl-btn" ontouchstart="keys['ArrowLeft']=true" ontouchend="keys['ArrowLeft']=false" onmousedown="keys['ArrowLeft']=true" onmouseup="keys['ArrowLeft']=false" onmouseleave="keys['ArrowLeft']=false">←</button>
+      <button class="ctrl-btn" ontouchstart="keys['ArrowDown']=true" ontouchend="keys['ArrowDown']=false" onmousedown="keys['ArrowDown']=true" onmouseup="keys['ArrowDown']=false" onmouseleave="keys['ArrowDown']=false">↓</button>
+      <button class="ctrl-btn" ontouchstart="keys['ArrowRight']=true" ontouchend="keys['ArrowRight']=false" onmousedown="keys['ArrowRight']=true" onmouseup="keys['ArrowRight']=false" onmouseleave="keys['ArrowRight']=false">→</button>
+    </div>
+  </div>
+  <button class="ctrl-btn ctrl-action" onclick="checkInteraction()">Действие</button>
 </div>
 
 <script>
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
 
-  // Состояние игры
-  let gameState = {
-    isDialogueOpen: false,
-    egorMet: false
-  };
+  let gameState = { isDialogueOpen: false };
 
-  // Игрок (Равиль)
-  const player = {
-    x: 400, y: 300,
-    size: 30,
-    speed: 3,
-    color: '#3498db' // Синий
-  };
+  const player = { x: 400, y: 300, size: 30, speed: 4, color: '#3498db' };
+  const egor = { x: 200, y: 200, size: 30, color: '#e74c3c', name: "Егор" };
 
-  // Егор (NPC)
-  const egor = {
-    x: 200, y: 200,
-    size: 30,
-    color: '#e74c3c', // Красный
-    name: "Егор"
-  };
-
-  // Управление (стрелки или WASD)
   const keys = {};
 
+  // Управление с клавиатуры
   window.addEventListener('keydown', (e) => {
     keys[e.key] = true;
-    // Пробел для взаимодействия
-    if (e.key === ' ' && !gameState.isDialogueOpen) {
-      checkInteraction();
-    }
-    // Чтобы страница не скроллилась
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
-      e.preventDefault();
-    }
+    if (e.key === ' ' && !gameState.isDialogueOpen) { checkInteraction(); }
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
   });
 
-  window.addEventListener('keyup', (e) => {
-    keys[e.key] = false;
-  });
+  window.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
-  // Проверка, подошел ли игрок к Егору
   function checkInteraction() {
+    if (gameState.isDialogueOpen) return;
     const dist = Math.hypot(player.x - egor.x, player.y - egor.y);
-    if (dist < 60) { // Если близко
-      openDialogue();
-    }
+    if (dist < 60) openDialogue();
   }
 
-  // Обновление позиции игрока
   function update() {
-    if (gameState.isDialogueOpen) return; // Если диалог открыт, игрок не ходит
+    if (gameState.isDialogueOpen) return;
 
     if (keys['ArrowUp'] || keys['w'] || keys['W']) player.y -= player.speed;
     if (keys['ArrowDown'] || keys['s'] || keys['S']) player.y += player.speed;
     if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.x -= player.speed;
     if (keys['ArrowRight'] || keys['d'] || keys['D']) player.x += player.speed;
 
-    // Ограничение по краям
     if (player.x < 0) player.x = 0;
     if (player.y < 0) player.y = 0;
     if (player.x > canvas.width - player.size) player.x = canvas.width - player.size;
     if (player.y > canvas.height - player.size) player.y = canvas.height - player.size;
   }
 
-  // Отрисовка
   function draw() {
-    // Очистка
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Рисуем пол (асфальт)
-    ctx.fillStyle = '#222';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Рисуем разметку
-    ctx.strokeStyle = '#444';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([20, 20]);
-    ctx.beginPath();
-    ctx.moveTo(400, 0); ctx.lineTo(400, 600);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // Двор
+    ctx.fillStyle = '#222'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#444'; ctx.lineWidth = 2; ctx.setLineDash([20, 20]);
+    ctx.beginPath(); ctx.moveTo(400, 0); ctx.lineTo(400, 600); ctx.stroke(); ctx.setLineDash([]);
 
-    // Рисуем BMW X4 (просто прямоугольник)
-    ctx.fillStyle = '#000';
-    ctx.fillRect(350, 250, 100, 50);
-    ctx.fillStyle = '#fff';
-    ctx.font = "12px Arial";
-    ctx.fillText("BMW", 385, 280);
+    // Машина
+    ctx.fillStyle = '#000'; ctx.fillRect(350, 250, 100, 50);
+    ctx.fillStyle = '#fff'; ctx.font = "12px Arial"; ctx.fillText("BMW", 385, 280);
 
-    // Рисуем Егора
-    ctx.fillStyle = egor.color;
-    ctx.fillRect(egor.x, egor.y, egor.size, egor.size);
-    ctx.fillStyle = '#fff';
-    ctx.font = "12px Arial";
-    ctx.fillText(egor.name, egor.x + 5, egor.y - 5);
+    // Егор
+    ctx.fillStyle = egor.color; ctx.fillRect(egor.x, egor.y, egor.size, egor.size);
+    ctx.fillStyle = '#fff'; ctx.fillText(egor.name, egor.x + 5, egor.y - 5);
 
-    // Рисуем Игрока (Равиля)
-    ctx.fillStyle = player.color;
-    ctx.fillRect(player.x, player.y, player.size, player.size);
-    ctx.fillStyle = '#fff';
-    ctx.fillText("Равиль", player.x, player.y - 5);
+    // Игрок
+    ctx.fillStyle = player.color; ctx.fillRect(player.x, player.y, player.size, player.size);
+    ctx.fillStyle = '#fff'; ctx.fillText("Равиль", player.x, player.y - 5);
 
-    // Подсказка над Егором, если близко
+    // Подсказка
     const dist = Math.hypot(player.x - egor.x, player.y - egor.y);
     if (dist < 60 && !gameState.isDialogueOpen) {
-      ctx.fillStyle = '#f1c40f';
-      ctx.font = "bold 14px Arial";
-      ctx.fillText("Нажми ПРОБЕЛ", egor.x - 10, egor.y - 25);
+      ctx.fillStyle = '#f1c40f'; ctx.font = "bold 14px Arial";
+      ctx.fillText("Нажми ПРОБЕЛ (или Действие)", egor.x - 30, egor.y - 25);
     }
   }
 
-  // Игровой цикл
-  function gameLoop() {
-    update();
-    draw();
-    requestAnimationFrame(gameLoop);
-  }
+  function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
 
-  // ====== ДИАЛОГОВАЯ СИСТЕМА ======
+  // Диалоги
   function openDialogue() {
     gameState.isDialogueOpen = true;
     document.getElementById('dialogue').style.display = 'flex';
-    
-    // Первый диалог
     showDialogue("Егор: — Ну и чего ты встал? Опять понтуешься перед прохожими?", [
       { text: "А тебе какое дело? Это моя машина!", action: () => endDialogue() },
       { text: "Слушай, Егор. Может, прокатимся?", action: () => endDialogue(true) }
@@ -172,31 +157,22 @@
 
   function showDialogue(text, choices) {
     document.getElementById('dialogue-text').textContent = text;
-    const choicesContainer = document.getElementById('dialogue-choices');
-    choicesContainer.innerHTML = '';
-
+    const container = document.getElementById('dialogue-choices');
+    container.innerHTML = '';
     choices.forEach(choice => {
       const btn = document.createElement('button');
-      btn.className = 'choice-btn';
-      btn.textContent = choice.text;
-      btn.onclick = choice.action;
-      choicesContainer.appendChild(btn);
+      btn.className = 'choice-btn'; btn.textContent = choice.text; btn.onclick = choice.action;
+      container.appendChild(btn);
     });
   }
 
   function endDialogue(egorAgreed = false) {
     document.getElementById('dialogue').style.display = 'none';
     gameState.isDialogueOpen = false;
-    
-    if (egorAgreed) {
-      // Егор согласился, можно его переместить или изменить диалог
-      alert("Егор: — Ладно, поехали. Только не гони.");
-    } else {
-      alert("Егор: — Ну и катись тогда.");
-    }
+    if (egorAgreed) alert("Егор: — Ладно, поехали. Только не гони.");
+    else alert("Егор: — Ну и катись тогда.");
   }
 
-  // Запуск
   gameLoop();
 </script>
 </body>
